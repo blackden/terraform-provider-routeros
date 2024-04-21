@@ -44,7 +44,7 @@ func ResourceInterfaceWireguardPeer() *schema.Resource {
 			DiffSuppressFunc: AlwaysPresentNotUserProvided,
 		},
 		"client_keepalive": {
-			Type:             schema.TypeInt,
+			Type:             schema.TypeString,
 			Optional:         true,
 			Description:      "Same as persistent-keepalive but from peer side.",
 			ValidateFunc:     validation.IntBetween(0, 65535),
