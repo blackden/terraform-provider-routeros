@@ -25,9 +25,13 @@ func ResourceInterfaceDot1xClient() *schema.Resource {
 		KeyComment:  PropCommentRw,
 		KeyDisabled: PropDisabledRw,
 		"eap_methods": {
-			Type:        schema.TypeString,
-			Required:    true,
-			Description: "A list of EAP methods used for authentication: `eap-tls`, `eap-ttls`, `eap-peap`, `eap-mschapv2`.",
+			Type:     schema.TypeSet,
+			Required: true,
+			Elem: &schema.Schema{
+				Type: schema.TypeString,
+				ValidateFunc: validation.StringInSlice([]string{"eap-tls", "eap-ttls", "eap-peap", "eap-mschapv2"}, false),
+			},
+			Description: "A set of EAP methods used for authentication: `eap-tls`, `eap-ttls`, `eap-peap`, `eap-mschapv2`.",
 		},
 		"identity": {
 			Type:        schema.TypeString,
@@ -58,6 +62,14 @@ func ResourceInterfaceDot1xClient() *schema.Resource {
 		},
 
 		Schema: resSchema,
+		SchemaVersion: 1,
+		StateUpgraders: []schema.StateUpgrader{
+			{
+				Type: ResourceInterfaceDot1xClientV0().CoreConfigSchema().ImpliedType(),
+				Upgrade: stateMigrationScalarToList("eap_methods"),
+				Version: 0,
+			},
+		},
 	}
 }
 
@@ -81,9 +93,12 @@ func ResourceInterfaceDot1xServer() *schema.Resource {
 			DiffSuppressFunc: TimeEquall,
 		},
 		"auth_types": {
-			Type:        schema.TypeString,
-			Optional:    true,
-			Default:     "dot1x",
+			Type:     schema.TypeSet,
+			Optional: true,
+			Elem: &schema.Schema{
+				Type: schema.TypeString,
+				ValidateFunc: validation.StringInSlice([]string{"dot1x", "mac-auth"}, false),
+			},
 			Description: "Used authentication type on a server interface. Comma-separated list of `dot1x` and `mac-auth`.",
 		},
 		KeyComment:  PropCommentRw,
@@ -155,5 +170,13 @@ func ResourceInterfaceDot1xServer() *schema.Resource {
 		},
 
 		Schema: resSchema,
+		SchemaVersion: 1,
+		StateUpgraders: []schema.StateUpgrader{
+			{
+				Type: ResourceInterfaceDot1xServerV0().CoreConfigSchema().ImpliedType(),
+				Upgrade: stateMigrationScalarToList("auth_types"),
+				Version: 0,
+			},
+		},
 	}
 }

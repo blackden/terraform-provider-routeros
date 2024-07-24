@@ -67,6 +67,13 @@ func ResourceRadius() *schema.Resource {
 			Optional:    true,
 			Description: "Explicitly stated realm (user domain), so the users do not have to provide proper ISP domain name in the user name.",
 		},
+		"require_message_auth": {
+			Type:             schema.TypeString,
+			Optional:         true,
+			Description:      "An option whether to require `Message-Authenticator` in received Access-Accept/Challenge/Reject messages.",
+			DiffSuppressFunc: AlwaysPresentNotUserProvided,
+			ValidateFunc:     validation.StringInSlice([]string{"no", "yes-for-request-resp"}, false),
+		},
 		"secret": {
 			Type:        schema.TypeString,
 			Optional:    true,
@@ -74,9 +81,15 @@ func ResourceRadius() *schema.Resource {
 			Description: "The shared secret to access the RADIUS server.",
 		},
 		"service": {
-			Type:        schema.TypeString,
-			Optional:    true,
-			Description: "A comma-separated list of router services that will use the RADIUS server. Possible values: `hotspot`, `login`, `ppp`, `wireless`, `dhcp`.",
+			Type:     schema.TypeSet,
+			Optional: true,
+			Elem: &schema.Schema{
+				Type: schema.TypeString,
+				ValidateFunc: validation.StringInSlice([]string{"hotspot", "login", "ppp", "wireless",
+					"dhcp", "ipsec", "dot1x"}, false),
+			},
+			Description: "A set of router services that will use the RADIUS server. Possible values: " +
+				"`hotspot`, `login`, `ppp`, `wireless`, `dhcp`, `ipsec`, `dot1x`.",
 		},
 		"src_address": {
 			Type:         schema.TypeString,
@@ -104,6 +117,14 @@ func ResourceRadius() *schema.Resource {
 		},
 
 		Schema: resSchema,
+		SchemaVersion: 1,
+		StateUpgraders: []schema.StateUpgrader{
+			{
+				Type: ResourceRadiusV0().CoreConfigSchema().ImpliedType(),
+				Upgrade: stateMigrationScalarToList("service"),
+				Version: 0,
+			},
+		},
 	}
 }
 

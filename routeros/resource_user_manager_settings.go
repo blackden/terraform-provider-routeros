@@ -41,11 +41,13 @@ func ResourceUserManagerSettings() *schema.Resource {
 			Default:     "none",
 			Description: "Certificate for use in EAP TLS-type authentication methods.",
 		},
-		"enabled": {
-			Type:        schema.TypeBool,
-			Optional:    true,
-			Default:     false,
-			Description: "An option whether the User Manager functionality is enabled.",
+		KeyEnabled: PropEnabled("An option whether the User Manager functionality is enabled."),
+		"require_message_auth": {
+			Type:             schema.TypeString,
+			Optional:         true,
+			Description:      "An option whether to require `Message-Authenticator` in received Access-Accept/Challenge/Reject messages.",
+			DiffSuppressFunc: AlwaysPresentNotUserProvided,
+			ValidateFunc:     validation.StringInSlice([]string{"no", "yes-access-request"}, false),
 		},
 		"use_profiles": {
 			Type:        schema.TypeBool,

@@ -30,7 +30,9 @@ const (
 	crudUpdate
 	crudDelete
 	crudPost
+	crudImport
 	crudSign
+	crudSignViaScep
 	crudRemove
 	crudRevoke
 	crudMove

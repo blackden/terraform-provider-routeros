@@ -34,13 +34,13 @@ import (
   }
 */
 
-// https://help.mikrotik.com/docs/display/ROS/
+// https://help.mikrotik.com/docs/display/ROS/Certificates
 // https://wiki.mikrotik.com/wiki/Manual:System/Certificates
 func ResourceSystemCertificate() *schema.Resource {
 	resSchema := map[string]*schema.Schema{
 		MetaResourcePath: PropResourcePath("/certificate"),
 		MetaId:           PropId(Id),
-		MetaSkipFields:   PropSkipFields("sign"),
+		MetaSkipFields:   PropSkipFields("import", "sign", "sign_via_scep"),
 
 		"authority": {
 			Type:     schema.TypeString,
@@ -62,6 +62,12 @@ func ResourceSystemCertificate() *schema.Resource {
 		"ca_fingerprint": {
 			Type:     schema.TypeString,
 			Computed: true,
+		},
+		"challenge_password": {
+			Type:        schema.TypeString,
+			Computed:    true,
+			Sensitive:   true,
+			Description: "A challenge password for scep client.",
 		},
 		"common_name": {
 			Type:        schema.TypeString,
@@ -113,6 +119,32 @@ func ResourceSystemCertificate() *schema.Resource {
 		"fingerprint": {
 			Type:     schema.TypeString,
 			Computed: true,
+		},
+		"import": {
+			Type:          schema.TypeSet,
+			Optional:      true,
+			ForceNew:      true,
+			ConflictsWith: []string{"sign", "sign_via_scep"},
+			Elem: &schema.Resource{
+				Schema: map[string]*schema.Schema{
+					"cert_file_name": {
+						Type:        schema.TypeString,
+						Required:    true,
+						Description: "Certificate file name that will be imported.",
+					},
+					"key_file_name": {
+						Type:        schema.TypeString,
+						Optional:    true,
+						Description: "Key file name that will be imported.",
+					},
+					"passphrase": {
+						Type:        schema.TypeString,
+						Optional:    true,
+						Sensitive:   true,
+						Description: "File passphrase if there is such.",
+					},
+				},
+			},
 		},
 		"invalid_after": {
 			Type:        schema.TypeString,
@@ -182,11 +214,7 @@ func ResourceSystemCertificate() *schema.Resource {
 			ForceNew:    true,
 			Description: "Locality Name (eg, city).",
 		},
-		"name": {
-			Type:        schema.TypeString,
-			Required:    true,
-			Description: "Name of the certificate. Name can be edited.",
-		},
+		KeyName: PropName("Name of the certificate. Name can be edited."),
 		"organization": {
 			Type:        schema.TypeString,
 			Optional:    true,
@@ -214,21 +242,22 @@ func ResourceSystemCertificate() *schema.Resource {
 			Computed: true,
 		},
 		"sign": {
-			Type:     schema.TypeSet,
-			Optional: true,
-			ForceNew: true,
+			Type:          schema.TypeSet,
+			Optional:      true,
+			ForceNew:      true,
+			ConflictsWith: []string{"sign_via_scep"},
 			Elem: &schema.Resource{
 				Schema: map[string]*schema.Schema{
 					"ca": {
 						Type:        schema.TypeString,
 						Optional:    true,
-						Computed:    true,
+						ForceNew:    true,
 						Description: "Which CA to use if signing issued certificates.",
 					},
 					"ca_crl_host": {
 						Type:        schema.TypeString,
 						Optional:    true,
-						Computed:    true,
+						ForceNew:    true,
 						Description: "CRL host if issuing CA certificate.",
 					},
 					// "ca_on_smart_card": {
@@ -242,6 +271,49 @@ func ResourceSystemCertificate() *schema.Resource {
 					// 	Optional:    true,
 					// 	Description: "What name to assign to issued certificate.",
 					// },
+				},
+			},
+		},
+		"sign_via_scep": {
+			Type:          schema.TypeSet,
+			Optional:      true,
+			ForceNew:      true,
+			ConflictsWith: []string{"sign"},
+			Elem: &schema.Resource{
+				Schema: map[string]*schema.Schema{
+					"scep_url": {
+						Type:         schema.TypeString,
+						Required:     true,
+						ForceNew:     true,
+						ValidateFunc: validation.IsURLWithScheme([]string{"http"}),
+						Description:  "HTTP URL to the SCEP server.",
+					},
+					"challenge_password": {
+						Type:        schema.TypeString,
+						Optional:    true,
+						Sensitive:   true,
+						ForceNew:    true,
+						Description: "A challenge password.",
+					},
+					"ca_identity": {
+						Type:        schema.TypeString,
+						Optional:    true,
+						ForceNew:    true,
+						Description: "SCEP CA identity.",
+					},
+					"on_smart_card": {
+						Type:        schema.TypeBool,
+						Optional:    true,
+						ForceNew:    true,
+						Description: "Whether to store a private key on smart card if hardware supports it.",
+					},
+					"refresh": {
+						Type:        schema.TypeBool,
+						Optional:    true,
+						Default:     true,
+						ForceNew:    true,
+						Description: "Check certificate expiration and refresh it if expired.",
+					},
 				},
 			},
 		},
@@ -272,9 +344,10 @@ func ResourceSystemCertificate() *schema.Resource {
 			Description: "SANs (subject alternative names).",
 		},
 		"trusted": {
-			Type:        schema.TypeBool,
-			Optional:    true,
-			Description: "If set to yes certificate is included 'in trusted certificate chain'.",
+			Type:             schema.TypeBool,
+			Optional:         true,
+			DiffSuppressFunc: AlwaysPresentNotUserProvided,
+			Description:      "If set to yes certificate is included 'in trusted certificate chain'.",
 		},
 		"unit": {
 			Type:        schema.TypeString,
@@ -284,39 +357,119 @@ func ResourceSystemCertificate() *schema.Resource {
 		},
 	}
 
-	resCreate := func(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-		// Run DefaultCreate.
-		diags := ResourceCreate(ctx, resSchema, d, m)
-		if diags.HasError() {
-			return diags
+	certImport := func(ctx context.Context, attrBlock any, d *schema.ResourceData, m interface{}) diag.Diagnostics {
+		var certName string
+
+		bl := attrBlock.(*schema.Set).List()[0].(map[string]interface{})
+		var resUrl = &URL{Path: resSchema[MetaResourcePath].Default.(string)}
+		if m.(Client).GetTransport() == TransportREST {
+			resUrl.Path += "/import"
 		}
 
-		sign, ok := d.GetOk("sign")
-		if !ok {
+		params := MikrotikItem{KeyName: d.Get(KeyName).(string), "file-name": bl["cert_file_name"].(string)}
+		if passwd, ok := bl["passphrase"]; ok {
+			params["passphrase"] = passwd.(string)
+		}
+
+		// Import certificate
+		err := m.(Client).SendRequest(crudImport, resUrl, params, nil)
+		if err != nil {
+			return diag.FromErr(err)
+		}
+
+		if keyFile, ok := bl["key_file_name"]; ok {
+			params = MikrotikItem{KeyName: d.Get(KeyName).(string), "file-name": keyFile.(string)}
+			if passwd, ok := bl["passphrase"]; ok {
+				params["passphrase"] = passwd.(string)
+			}
+
+			// Import key
+			err := m.(Client).SendRequest(crudImport, resUrl, params, nil)
+			if err != nil {
+				return diag.FromErr(err)
+			}
+		}
+
+		res, err := ReadItemsFiltered([]string{"name=" + d.Get(KeyName).(string)},
+			resSchema[MetaResourcePath].Default.(string), m.(Client))
+		if err != nil {
+			return diag.FromErr(err)
+		}
+
+		switch len(*res) {
+		case 0:
+			return diag.Errorf("resource not found: name=%v", certName)
+		case 1:
+			retId, ok := (*res)[0][Id.String()]
+			if !ok {
+				return diag.Errorf("attribute %v not found in the response", Id.String())
+			}
+			d.SetId(retId)
+		default:
+			return diag.Errorf("more than one resource found: name=%v", certName)
+		}
+
+		return ResourceRead(ctx, resSchema, d, m)
+	}
+
+	resCreate := func(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
+		var diags diag.Diagnostics
+		var cmdBlock any // User config for certificate signing
+		var crudMethod crudMethod
+		var command string // MikroTik command to sign certificate
+		var ok bool
+
+		if _, ok = d.GetOk("import"); !ok {
+			// Run DefaultCreate.
+			diags = ResourceCreate(ctx, resSchema, d, m)
+			if diags.HasError() {
+				return diags
+			}
+		}
+
+		var params MikrotikItem // Parameters for MikroTik command
+
+		if cmdBlock, ok = d.GetOk("sign"); ok {
+			// {"number":"*54", ca: "Test-CA"}
+			params = MikrotikItem{"number": d.Id()}
+			crudMethod = crudSign
+			// https://router/rest/certificate/sign
+			command = "/sign"
+		} else if cmdBlock, ok = d.GetOk("sign_via_scep"); ok {
+			params = MikrotikItem{"template": d.Get("name").(string)}
+			crudMethod = crudSignViaScep
+			// https://router/rest/certificate/add-scep
+			command = "/add-scep"
+		} else if cmdBlock, ok = d.GetOk("import"); ok {
+			return certImport(ctx, cmdBlock, d, m)
+		} else {
 			return diags
 		}
 
 		// []interface{map[string]interface{...}}
-		signSchema := sign.(*schema.Set).List()[0].(map[string]interface{})
-
-		// {"number":"*54", ca: "Test-CA"}
-		item := MikrotikItem{"number": d.Id()}
-		for k, v := range signSchema {
-			if v.(string) == "" {
-				continue
+		for k, v := range cmdBlock.(*schema.Set).List()[0].(map[string]interface{}) {
+			k = SnakeToKebab(k)
+			switch v := v.(type) {
+			case string:
+				if v == "" {
+					continue
+				}
+				params[k] = v
+			case bool:
+				params[k] = BoolToMikrotikJSON(v)
+			default:
+				panic("ResourceSystemCertificate resCreate: unhandled type switch")
 			}
-			item[k] = v.(string)
 		}
 
 		var resUrl = &URL{
 			Path: resSchema[MetaResourcePath].Default.(string),
 		}
 		if m.(Client).GetTransport() == TransportREST {
-			// https://router/rest/certificate/sign
-			resUrl.Path += "/sign"
+			resUrl.Path += command
 		}
 
-		err := m.(Client).SendRequest(crudSign, resUrl, item, nil)
+		err := m.(Client).SendRequest(crudMethod, resUrl, params, nil)
 		if err != nil {
 			return diag.FromErr(err)
 		}

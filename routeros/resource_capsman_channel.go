@@ -23,7 +23,6 @@ import (
 
 // https://help.mikrotik.com/docs/display/ROS/CAPsMAN
 func ResourceCapsManChannel() *schema.Resource {
-
 	resSchema := map[string]*schema.Schema{
 		MetaResourcePath: PropResourcePath("/caps-man/channel"),
 		MetaId:           PropId(Id),
@@ -52,9 +51,11 @@ func ResourceCapsManChannel() *schema.Resource {
 				"xx", "xxxx", "xxxxxxxx", "disabled"}, false),
 		},
 		"frequency": {
-			Type:     schema.TypeInt,
+			Type:     schema.TypeList,
 			Optional: true,
-			Computed: true,
+			Elem: &schema.Schema{
+				Type: schema.TypeInt,
+			},
 			Description: "Channel frequency value in MHz on which AP will operate. If left blank, CAPsMAN will " +
 				"automatically determine the best frequency that is least occupied.",
 		},
@@ -74,8 +75,11 @@ func ResourceCapsManChannel() *schema.Resource {
 				"saves the last picked frequency.",
 		},
 		"secondary_frequency": {
-			Type:     schema.TypeString,
+			Type:     schema.TypeList,
 			Optional: true,
+			Elem: &schema.Schema{
+				Type: schema.TypeString,
+			},
 			Description: "Specifies the second frequency that will be used for 80+80MHz configuration. " +
 				"Set it to Disabled in order to disable 80+80MHz capability.",
 		},
@@ -109,15 +113,19 @@ func ResourceCapsManChannel() *schema.Resource {
 			StateContext: schema.ImportStatePassthroughContext,
 		},
 
-		SchemaVersion: 1,
+		Schema: resSchema,
+		SchemaVersion: 2,
 		StateUpgraders: []schema.StateUpgrader{
 			{
 				Type:    ResourceCapsManChannelV0().CoreConfigSchema().ImpliedType(),
 				Upgrade: stateMigrationNameToId(resSchema[MetaResourcePath].Default.(string)),
 				Version: 0,
 			},
+			{
+				Type:    ResourceCapsManChannelV1().CoreConfigSchema().ImpliedType(),
+				Upgrade: stateMigrationScalarToList("frequency", "secondary_frequency"),
+				Version: 1,
+			},
 		},
-
-		Schema: resSchema,
 	}
 }

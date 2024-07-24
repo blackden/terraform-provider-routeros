@@ -35,6 +35,7 @@ const (
 	KeyDisabled                = "disabled"
 	KeyDontFragment            = "dont_fragment"
 	KeyDscp                    = "dscp"
+	KeyEnabled                 = "enabled"
 	KeyFilter                  = "filter"
 	KeyInactive                = "inactive"
 	KeyInterface               = "interface"
@@ -106,7 +107,7 @@ func PropDropByValue(s ...string) *schema.Schema {
 	}
 }
 
-// PropTransformSet
+// PropTransformSet List of []string{"TF", "MT"} string pairs.
 func PropTransformSet(s ...string) *schema.Schema {
 	return &schema.Schema{
 		Type:        schema.TypeString,
@@ -151,6 +152,24 @@ func PropName(description string) *schema.Schema {
 		Type:        schema.TypeString,
 		Required:    true,
 		Description: description,
+	}
+}
+func PropNameOptional(description string) *schema.Schema {
+	return &schema.Schema{
+		Type:             schema.TypeString,
+		Optional:         true,
+		Description:      description,
+		DiffSuppressFunc: AlwaysPresentNotUserProvided,
+	}
+}
+
+// PropEnabled
+func PropEnabled(description string) *schema.Schema {
+	return &schema.Schema{
+		Type:             schema.TypeBool,
+		Optional:         true,
+		Description:      description,
+		DiffSuppressFunc: AlwaysPresentNotUserProvided,
 	}
 }
 
@@ -602,6 +621,11 @@ var (
 			return true
 		}
 
+		// #447 routeros_ip_dhcp_server_config.store_leases_disk == "immediately"
+		if old == "immediately" || new == "immediately" {
+			return old == new
+		}
+
 		// Compare intervals:
 		oDuration, err := ParseDuration(old)
 		if err != nil {
@@ -647,10 +671,6 @@ var (
 	// Prevents the need of hardcode values for default values, as those are harder to track over time/versions of
 	// routeros
 	AlwaysPresentNotUserProvided = func(k, old, new string, d *schema.ResourceData) bool {
-		if old == "" {
-			return false
-		}
-
 		value := d.GetRawConfig()
 
 		// For lists and sets, the key will look like `something.12345` or `something.#`.

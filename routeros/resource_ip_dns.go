@@ -130,10 +130,12 @@ func ResourceDns() *schema.Resource {
 			DiffSuppressFunc: TimeEquall,
 		},
 		"servers": {
-			Type:        schema.TypeString,
+			Type:        schema.TypeList,
 			Optional:    true,
+			Elem:        &schema.Schema{Type: schema.TypeString},
 			Description: "List of DNS server IPv4/IPv6 addresses.",
 		},
+		KeyVrf: PropVrfRw,
 		"use_doh_server": {
 			Type:     schema.TypeString,
 			Optional: true,
@@ -189,5 +191,13 @@ func ResourceDns() *schema.Resource {
 		},
 
 		Schema: resSchema,
+		SchemaVersion: 1,
+		StateUpgraders: []schema.StateUpgrader{
+			{
+				Type: ResourceDnsV0().CoreConfigSchema().ImpliedType(),
+				Upgrade: stateMigrationScalarToList("servers"),
+				Version: 0,
+			},
+		},
 	}
 }
