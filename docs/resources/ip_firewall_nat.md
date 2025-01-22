@@ -61,12 +61,13 @@ resource "routeros_ip_firewall_nat" "rule" {
 - `per_connection_classifier` (String) PCC matcher allows dividing traffic into equal streams with the ability to keep packets with a specific set of options in one particular stream.
 - `place_before` (String) Before which position the rule will be inserted.  
 	> Please check the effect of this option, as it does not work as you think!  
-	> Best way to use in conjunction with a data source. See [example](../data-sources/firewall.md#example-usage).
+	> Best way to use in conjunction with a data source. See [example](../data-sources/ip_firewall.md#example-usage).
 - `port` (String) Matches if any (source or destination) port matches the specified list of ports or port ranges. Applicable only if protocol is TCP or UDP
 - `priority` (Number) Matches the packet's priority after a new priority has been set. Priority may be derived from VLAN, WMM, DSCP, MPLS EXP bit, or from the priority that has been set using the set-priority action.
 - `protocol` (String) Matches particular IP protocol specified by protocol name or number.
 - `psd` (String) Attempts to detect TCP and UDP scans. Parameters are in the following format WeightThreshold, DelayThreshold, LowPortWeight, HighPortWeight.
 - `random` (Number) Matches packets randomly with a given probability.
+- `randomise_ports` (Boolean) Randomize to which public port connections will be mapped.
 - `routing_mark` (String) Matches packets marked by mangle facility with particular routing mark.
 - `same_not_by_dst` (Boolean) Specifies whether to take into account or not destination IP address when selecting a new source IP address. Applicable if action=same
 - `src_address` (String) Matches packets which source is equal to specified IP or falls into a specified IP range.

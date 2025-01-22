@@ -24,12 +24,12 @@ resource "routeros_interface_ethernet" "test" {
 				only applies when auto-negotiation is enabled. Advertising higher speeds than 
 				the actual interface supported speed will have no effect, multiple options are allowed.
 - `arp` (String) Address Resolution Protocol mode:
-		* disabled - the interface will not use ARP
-		* enabled - the interface will use ARP
-		* local-proxy-arp - the router performs proxy ARP on the interface and sends replies to the same interface
-		* proxy-arp - the router performs proxy ARP on the interface and sends replies to other interfaces
-		* reply-only - the interface will only reply to requests originated from matching IP address/MAC address combinations which are entered as static entries in the ARP table. No dynamic entries will be automatically stored in the ARP table. Therefore for communications to be successful, a valid static entry must already exist.
-- `arp_timeout` (String) ARP timeout is time how long ARP record is kept in ARP table after no packets are received from IP. Value auto equals to the value of arp-timeout in IP/Settings, default is 30s. Can use postfix ms, s, M, h, d for milliseconds, seconds, minutes, hours or days. If no postfix is set then seconds (s) is used.
+  * disabled - the interface will not use ARP
+  * enabled - the interface will use ARP
+  * local-proxy-arp - the router performs proxy ARP on the interface and sends replies to the same interface
+  * proxy-arp - the router performs proxy ARP on the interface and sends replies to other interfaces
+  * reply-only - the interface will only reply to requests originated from matching IP address/MAC address combinations which are entered as static entries in the ARP table. No dynamic entries will be automatically stored in the ARP table. Therefore for communications to be successful, a valid static entry must already exist.
+- `arp_timeout` (String) ARP timeout is time how long ARP record is kept in ARP table after no packets are received from IP. Value auto equals to the value of arp-timeout in IP/Settings, default is 30s. Can use postfix `ms`, `s`, `M`, `h`, `d` for milliseconds, seconds, minutes, hours or days. If no postfix is set then seconds (s) is used.
 - `auto_negotiation` (Boolean) When enabled, the interface "advertises" its maximum capabilities to achieve the best connection possible.
 					Note1: Auto-negotiation should not be disabled on one end only, otherwise Ethernet Interfaces may not work properly.
 					Note2: Gigabit Ethernet and NBASE-T Ethernet links cannot work with auto-negotiation disabled.
@@ -43,6 +43,7 @@ resource "routeros_interface_ethernet" "test" {
 - `disable_running_check` (Boolean) Disable running check. If this value is set to 'no', the router automatically detects whether the NIC is connected with a device in the network or not.
 			Default value is 'yes' because older NICs do not support it. (only applicable to x86)
 - `disabled` (Boolean)
+- `fec_mode` (String) Changes Forward Error Correction (FEC) mode for SFP28, QSFP+ and QSFP28 interfaces. Same mode should be used on both link ends, otherwise FEC mismatch could result in non-working link or even false link-ups.
 - `full_duplex` (Boolean) Defines whether the transmission of data appears in two directions simultaneously, only applies when auto-negotiation is disabled.
 - `l2mtu` (Number) Layer2 Maximum transmission unit. [See](https://wiki.mikrotik.com/wiki/Maximum_Transmission_Unit_on_RouterBoards).
 - `loop_protect` (String)

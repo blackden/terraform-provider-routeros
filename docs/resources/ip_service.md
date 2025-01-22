@@ -4,9 +4,9 @@
 ## Example Usage
 ```terraform
 locals {
-  tls_service     = {"api-ssl" = 8729, "www-ssl" = 443}
-  disable_service = {"api" = 8728, "ftp" = 21, "telnet" = 23, "www" = 80}
-  enable_service  = {"ssh" = 22, "winbox" = 8291}
+  tls_service     = { "api-ssl" = 8729, "www-ssl" = 443 }
+  disable_service = { "api" = 8728, "ftp" = 21, "telnet" = 23, "www" = 80 }
+  enable_service  = { "ssh" = 22, "winbox" = 8291 }
 }
 
 resource "routeros_system_certificate" "tls_cert" {
@@ -58,6 +58,7 @@ resource "routeros_ip_service" "enabled" {
 - `address` (String) List of IP/IPv6 prefixes from which the service is accessible.
 - `certificate` (String) The name of the certificate used by a particular service. Applicable only for services that depend on certificates ( www-ssl, api-ssl ).
 - `disabled` (Boolean)
+- `max_sessions` (Number) Maximum number of concurrent connections to a particular service. This option is available in RouterOS starting from version 7.16.
 - `tls_version` (String) Specifies which TLS versions to allow by a particular service.
 - `vrf` (String) The VRF table this resource operates on.
 

@@ -1,6 +1,9 @@
 package routeros
 
 import (
+	"context"
+	"reflect"
+
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 )
@@ -56,10 +59,18 @@ func ResourceRoutingOspfInterfaceTemplate() *schema.Resource {
 			ValidateFunc: validation.IntBetween(0, 255),
 		},
 		"authentication_key": {
-			Type:        schema.TypeString,
-			Optional:    true,
-			Sensitive:   true,
-			Description: "The authentication key to be used, should match on all the neighbors of the network segment.",
+			Type:      schema.TypeString,
+			Optional:  true,
+			Sensitive: true,
+			Description: "The authentication key to be used, should match on all the neighbors of the network segment " +
+				"(for versions before RouterOS 7.x).",
+		},
+		"auth_key": {
+			Type:      schema.TypeString,
+			Optional:  true,
+			Sensitive: true,
+			Description: "The authentication key to be used, should match on all the neighbors of the network segment " +
+				"(available since RouterOS 7.x).",
 		},
 		KeyComment: PropCommentRw,
 		"cost": {
@@ -67,7 +78,7 @@ func ResourceRoutingOspfInterfaceTemplate() *schema.Resource {
 			Optional:     true,
 			Default:      1,
 			Description:  "Interface cost expressed as link state metric.",
-			ValidateFunc: validation.IntBetween(0, 65535),
+			ValidateFunc: Validation64k,
 		},
 		"dead_interval": {
 			Type:             schema.TypeString,
@@ -102,10 +113,14 @@ func ResourceRoutingOspfInterfaceTemplate() *schema.Resource {
 			Default:      0,
 			ValidateFunc: validation.IntBetween(0, 255),
 		},
-		"network": {
-			Type:        schema.TypeString,
-			Optional:    true,
-			Description: "The network prefix associated with the area.",
+		"networks": {
+			Type:     schema.TypeSet,
+			Optional: true,
+			Elem: &schema.Schema{
+				Type:         schema.TypeString,
+				ValidateFunc: validation.IsCIDR,
+			},
+			Description: "The network prefixes associated with the area.",
 		},
 		"passive": {
 			Type:     schema.TypeBool,
@@ -174,6 +189,32 @@ func ResourceRoutingOspfInterfaceTemplate() *schema.Resource {
 			StateContext: schema.ImportStatePassthroughContext,
 		},
 
-		Schema: resSchema,
+		Schema:        resSchema,
+		SchemaVersion: 1,
+		StateUpgraders: []schema.StateUpgrader{
+			{
+				Type: ResourceRoutingOspfInterfaceTemplateV0().CoreConfigSchema().ImpliedType(),
+				Upgrade: func(ctx context.Context, rawState map[string]interface{}, meta interface{}) (map[string]interface{}, error) {
+					defer delete(rawState, "network")
+
+					if rawState["network"] == nil {
+						return rawState, nil
+					}
+
+					value := reflect.ValueOf(rawState["network"])
+					if value.IsZero() {
+						rawState["networks"] = []interface{}{}
+						return rawState, nil
+					}
+
+					slice := reflect.MakeSlice(reflect.SliceOf(value.Type()), 0, 1)
+					reflect.Append(slice, value)
+					rawState["networks"] = slice.Interface()
+
+					return rawState, nil
+				},
+				Version: 0,
+			},
+		},
 	}
 }

@@ -25,16 +25,9 @@ func ResourceUserManagerAttribute() *schema.Resource {
 		MetaResourcePath: PropResourcePath("/user-manager/attribute"),
 		MetaId:           PropId(Id),
 
-		"default": {
-			Type:     schema.TypeBool,
-			Computed: true,
-		},
-		"default_name": {
-			Type:        schema.TypeString,
-			Computed:    true,
-			Description: "The attribute's default name.",
-		},
-		KeyName: PropName("The attribute's name."),
+		KeyDefault:     PropDefaultRo,
+		KeyDefaultName: PropDefaultNameRo("The attribute's default name."),
+		KeyName:        PropName("The attribute's name."),
 		"packet_types": {
 			Type:     schema.TypeSet,
 			Optional: true,

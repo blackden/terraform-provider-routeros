@@ -61,7 +61,8 @@ func ResourceInterfaceEthernet() *schema.Resource {
 			"tx_broadcast", "tx_bytes", "tx_control", "tx_drop", "tx_fcs_error", "tx_fragment", "tx_jabber", "tx_multicast", "tx_packet", "tx_pause", "tx_too_short", "tx_too_long",
 			"rx_align_error", "rx_carrier_error", "rx_code_error", "rx_error_events", "rx_length_error", "rx_overflow", "rx_unicast", "rx_unknown_op",
 			"tx_collision", "tx_excessive_collision", "tx_late_collision", "tx_multiple_collision", "tx_single_collision", "tx_total_collision",
-			"tx_deferred", "tx_excessive_deferred", "tx_unicast", "tx_underrun",
+			"tx_deferred", "tx_excessive_deferred", "tx_unicast", "tx_underrun", "rx_tcp_checksum_error", "rx_udp_checksum_error", "rx_ip_header_checksum_error",
+			"tx_carrier_sense_error",
 		),
 
 		"advertise": {
@@ -110,13 +111,9 @@ func ResourceInterfaceEthernet() *schema.Resource {
 			ValidateFunc:     validation.StringInSlice([]string{"auto", "copper", "sfp"}, false),
 			DiffSuppressFunc: AlwaysPresentNotUserProvided,
 		},
-		KeyComment: PropCommentRw,
-		"default_name": {
-			Type:        schema.TypeString,
-			Computed:    true,
-			Description: "The default name for an interface.",
-		},
-		KeyDisabled: PropDisabledRw,
+		KeyComment:     PropCommentRw,
+		KeyDefaultName: PropDefaultNameRo("The default name for an interface."),
+		KeyDisabled:    PropDisabledRw,
 		"disable_running_check": {
 			Type:     schema.TypeBool,
 			Optional: true,
@@ -128,6 +125,15 @@ func ResourceInterfaceEthernet() *schema.Resource {
 			Type:        schema.TypeString,
 			Required:    true,
 			Description: "The factory name of the identifier, serves as resource identifier. Determines which interface will be updated.",
+		},
+		"fec_mode": {
+			Type:     schema.TypeString,
+			Optional: true,
+			Description: "Changes Forward Error Correction (FEC) mode for SFP28, QSFP+ and QSFP28 interfaces. " +
+				"Same mode should be used on both link ends, otherwise FEC mismatch could result in non-working link " +
+				"or even false link-ups. ",
+			ValidateFunc:     validation.StringInSlice([]string{"auto", "fec74", "fec91", "off"}, false),
+			DiffSuppressFunc: AlwaysPresentNotUserProvided,
 		},
 		"full_duplex": {
 			Type:             schema.TypeBool,

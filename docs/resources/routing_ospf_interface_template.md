@@ -4,16 +4,16 @@
 ## Example Usage
 ```terraform
 resource "routeros_routing_ospf_instance" "test_routing_ospf_instance" {
-	name   		= "test_routing_ospf_instance"
+  name = "test_routing_ospf_instance"
 }
 
 resource "routeros_routing_ospf_area" "test_routing_ospf_area" {
-	name   		= "test_routing_ospf_area"
-	instance 	= routeros_routing_ospf_instance.test_routing_ospf_instance.name
+  name     = "test_routing_ospf_area"
+  instance = routeros_routing_ospf_instance.test_routing_ospf_instance.name
 }
 
 resource "routeros_routing_ospf_interface_template" "test_routing_ospf_interface_template" {
-		area = routeros_routing_ospf_area.test_routing_ospf_area.name
+  area = routeros_routing_ospf_area.test_routing_ospf_area.name
 }
 ```
 
@@ -28,7 +28,8 @@ resource "routeros_routing_ospf_interface_template" "test_routing_ospf_interface
 
 - `auth` (String) Specifies authentication method for OSPF protocol messages.
 - `auth_id` (Number) The key id is used to calculate message digest (used when MD5 or SHA authentication is enabled).
-- `authentication_key` (String, Sensitive) The authentication key to be used, should match on all the neighbors of the network segment.
+- `auth_key` (String, Sensitive) The authentication key to be used, should match on all the neighbors of the network segment (available since RouterOS 7.x).
+- `authentication_key` (String, Sensitive) The authentication key to be used, should match on all the neighbors of the network segment (for versions before RouterOS 7.x).
 - `comment` (String)
 - `cost` (Number) Interface cost expressed as link state metric.
 - `dead_interval` (String) Specifies the interval after which a neighbor is declared dead.
@@ -36,7 +37,7 @@ resource "routeros_routing_ospf_interface_template" "test_routing_ospf_interface
 - `hello_interval` (String) The interval between HELLO packets that the router sends out this interface.
 - `instance_id` (Number) Interface cost expressed as link state metric.
 - `interfaces` (Set of String) Interfaces to match.
-- `network` (String) The network prefix associated with the area.
+- `networks` (Set of String) The network prefixes associated with the area.
 - `passive` (Boolean) If enabled, then do not send or receive OSPF traffic on the matching interfaces. <em>The correct value of this attribute may not be displayed in Winbox. Please check the parameters in the console!</em>
 - `prefix_list` (String) Name of the address list containing networks that should be advertised to the v3 interface.
 - `priority` (Number) Router's priority. Used to determine the designated router in a broadcast network.

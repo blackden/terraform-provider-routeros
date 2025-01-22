@@ -3,6 +3,7 @@ package routeros
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -78,7 +79,7 @@ func isEmpty(propName string, schemaProp *schema.Schema, d *schema.ResourceData,
 // serialization/deserialization.
 // Forward transformation for use in the 'MikrotikResourceDataToTerraform' function, reverse transformation for use
 // in the 'TerraformResourceDataToMikrotik' function.
-// s: "channel: channel.config","datapath: datapath.config"` in the Mikrotik (kebab) notation!
+// s: "channel.config: channel","datapath.config: datapath"` in the Mikrotik (kebab) notation!
 func loadTransformSet(s string, reverse bool) (m map[string]string) {
 	m = make(map[string]string)
 	for _, b := range reTransformSet.FindAllStringSubmatch(s, -1) {
@@ -120,9 +121,9 @@ func TerraformResourceDataToMikrotik(s map[string]*schema.Schema, d *schema.Reso
 	var transformSet map[string]string
 	var skipFields, setUnsetFields map[string]struct{}
 
-	// {"channel.config": "channel", "schema-field-name": "mikrotik-field-name"}
+	// {"channel.config: channel", "datapath.config: datapath", "schema-field-name": "mikrotik-field-name"}
 	if ts, ok := s[MetaTransformSet]; ok {
-		transformSet = loadTransformSet(ts.Default.(string), true)
+		transformSet = loadTransformSet(ts.Default.(string), false)
 	}
 
 	// "field_first", "field_second", "field_third"
@@ -195,6 +196,13 @@ func TerraformResourceDataToMikrotik(s map[string]*schema.Schema, d *schema.Reso
 		mikrotikKebabName := SnakeToKebab(terraformSnakeName)
 		value := d.Get(terraformSnakeName)
 
+		// WiFi basic_rates_ag -> basic-rates-a/g
+		if transformSet != nil && terraformMetadata.Type != schema.TypeMap {
+			if new, ok := transformSet[terraformSnakeName]; ok {
+				mikrotikKebabName = SnakeToKebab(new)
+			}
+		}
+
 		switch terraformMetadata.Type {
 		case schema.TypeString:
 			if _, ok := setUnsetFields[terraformSnakeName]; ok && value.(string) == "" {
@@ -266,6 +274,25 @@ func TerraformResourceDataToMikrotik(s map[string]*schema.Schema, d *schema.Reso
 			}
 			// Used to represent an unordered collection of items.
 		case schema.TypeSet:
+			if _, ok := setUnsetFields[terraformSnakeName]; ok {
+				// policy = ["api", "read", "winbox"] -> ["api", "read"]
+				// old = ... read, !telnet, !rommon, api, !local, winbox
+				// new = api, read
+				var res []string
+				for _, v := range d.GetRawConfig().GetAttr(terraformSnakeName).AsValueSet().Values() {
+					res = append(res, v.AsString())
+				}
+
+				old, _ := d.GetChange(terraformSnakeName)
+				for _, v := range old.(*schema.Set).List() {
+					elem := v.(string)
+					if len(elem) > 0 && elem[0] != '!' && !slices.Contains(res, elem) {
+						res = append(res, "!"+elem)
+					}
+				}
+				item[mikrotikKebabName] = strings.Join(res, ",")
+				continue
+			}
 			item[mikrotikKebabName] = ListToString(value.(*schema.Set).List())
 		case schema.TypeMap:
 			for k, v := range value.(map[string]interface{}) {
@@ -302,7 +329,7 @@ func MikrotikResourceDataToTerraform(item MikrotikItem, s map[string]*schema.Sch
 
 	// {"channel": "channel.config", "mikrotik-field-name": "schema-field-name"}
 	if ts, ok := s[MetaTransformSet]; ok {
-		transformSet = loadTransformSet(ts.Default.(string), false)
+		transformSet = loadTransformSet(ts.Default.(string), true)
 	}
 
 	// "field_first", "field_second", "field_third"
@@ -547,6 +574,11 @@ func MikrotikResourceDataToTerraformDatasource(items *[]MikrotikItem, resourceDa
 	var dsItems []map[string]interface{}
 	// System resource have an empty 'resourceDataKeyName'.
 	var isSystemDatasource bool = (resourceDataKeyName == "")
+	var skipFields map[string]struct{}
+
+	if sf, ok := s[MetaSkipFields]; ok {
+		skipFields = loadSkipFields(sf.Default.(string))
+	}
 
 	// Checking the schema.
 	if !isSystemDatasource {
@@ -598,6 +630,13 @@ func MikrotikResourceDataToTerraformDatasource(items *[]MikrotikItem, resourceDa
 
 			// field-name => field_name
 			terraformSnakeName := KebabToSnake(mikrotikKebabName)
+
+			if skipFields != nil {
+				if _, ok := skipFields[terraformSnakeName]; ok {
+					continue
+				}
+			}
+
 			if _, ok := s[terraformSnakeName]; !ok {
 				// For development.
 				//panic("[MikrotikResourceDataToTerraformDatasource] the field was lost during development.: " + terraformSnakeName)

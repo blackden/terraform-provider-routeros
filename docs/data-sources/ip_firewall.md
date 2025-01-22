@@ -10,7 +10,7 @@ This datasource contains all supported firewall resources:
 data "routeros_ip_firewall" "fw" {
   rules {
     filter = {
-      chain = "input"
+      chain   = "input"
       comment = "rule_2"
     }
   }
@@ -25,19 +25,19 @@ data "routeros_ip_firewall" "fw" {
 }
 
 output "rules" {
-  value = [for value in data.routeros_ip_firewall.fw.rules: [value.id, value.src_address]]
+  value = [for value in data.routeros_ip_firewall.fw.rules : [value.id, value.src_address]]
 }
 
 output "nat" {
-  value = [for value in data.routeros_ip_firewall.fw.nat: [value.id, value.comment]]
+  value = [for value in data.routeros_ip_firewall.fw.nat : [value.id, value.comment]]
 }
 
 resource "routeros_ip_firewall" "rule_3" {
-  action = "accept"
-  chain  = "input"
-  comment = "rule_3"
-  src_address = "192.168.0.5"
-  place_before = "${data.routeros_ip_firewall_filter.fw.rules[0].id}"
+  action       = "accept"
+  chain        = "input"
+  comment      = "rule_3"
+  src_address  = "192.168.0.5"
+  place_before = data.routeros_ip_firewall_filter.fw.rules[0].id
 }
 ```
 
@@ -136,7 +136,6 @@ Read-Only:
 - `out_interface_list` (String)
 - `packet_mark` (String)
 - `packet_size` (String)
-- `packets` (Number)
 - `passthrough` (Boolean)
 - `per_connection_classifier` (String)
 - `port` (String)
@@ -210,7 +209,6 @@ Read-Only:
 - `out_interface_list` (String)
 - `packet_mark` (String)
 - `packet_size` (String)
-- `packets` (Number)
 - `per_connection_classifier` (String)
 - `port` (String)
 - `priority` (Number)
@@ -286,7 +284,6 @@ Read-Only:
 - `out_interface_list` (String)
 - `packet_mark` (String)
 - `packet_size` (String)
-- `packets` (Number)
 - `per_connection_classifier` (String)
 - `port` (String)
 - `priority` (Number)

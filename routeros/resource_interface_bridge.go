@@ -68,6 +68,12 @@ func ResourceInterfaceBridge() *schema.Resource {
 				"bridge will start functioning normally.",
 			DiffSuppressFunc: TimeEquall,
 		},
+		"forward_reserved_addresses": {
+			Type:             schema.TypeBool,
+			Optional:         true,
+			Description:      "An option whether to forward IEEE reserved multicast MAC addresses that are in the `01:80:C2:00:00:0x` range. This option is available in RouterOS starting from version 7.16.",
+			DiffSuppressFunc: AlwaysPresentNotUserProvided,
+		},
 		"frame_types": {
 			Type:     schema.TypeString,
 			Optional: true,
@@ -133,6 +139,12 @@ func ResourceInterfaceBridge() *schema.Resource {
 				"is being ignored. This property only has effect when protocol-mode is set to mstp.",
 			DiffSuppressFunc: AlwaysPresentNotUserProvided,
 			ValidateFunc:     validation.IntBetween(6, 40),
+		},
+		"max_learned_entries": {
+			Type:             schema.TypeString,
+			Optional:         true,
+			Description:      "An option to set the maximum number of learned hosts for the bridge interface. This option is available in RouterOS starting from version 7.16.",
+			DiffSuppressFunc: AlwaysPresentNotUserProvided,
 		},
 		"max_message_age": {
 			Type:     schema.TypeString,
@@ -268,7 +280,7 @@ func ResourceInterfaceBridge() *schema.Resource {
 			Type:         schema.TypeInt,
 			Optional:     true,
 			Description:  "MSTP configuration revision number. This property only has effect when protocol-mode is set to mstp.",
-			ValidateFunc: validation.IntBetween(0, 65535),
+			ValidateFunc: Validation64k,
 		},
 		"startup_query_count": {
 			Type:     schema.TypeInt,

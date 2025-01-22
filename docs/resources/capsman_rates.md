@@ -4,14 +4,14 @@
 ## Example Usage
 ```terraform
 resource "routeros_capsman_rates" "test_rates" {
-	name              = "test_rates"
-	comment           = "test_rates"
-	basic             = ["1Mbps", "5.5Mbps", "6Mbps", "18Mbps", "36Mbps", "54Mbps"]
-	ht_basic_mcs      = ["mcs-0", "mcs-7", "mcs-11", "mcs-14", "mcs-16", "mcs-21"]
-	ht_supported_mcs  = ["mcs-3", "mcs-8", "mcs-10", "mcs-13", "mcs-17", "mcs-18"]
-	supported         = ["2Mbps", "11Mbps", "9Mbps", "12Mbps", "24Mbps", "48Mbps"]
-	vht_basic_mcs     = "none"
-	vht_supported_mcs = "mcs0-9,mcs0-7"
+  name              = "test_rates"
+  comment           = "test_rates"
+  basic             = ["1Mbps", "5.5Mbps", "6Mbps", "18Mbps", "36Mbps", "54Mbps"]
+  ht_basic_mcs      = ["mcs-0", "mcs-7", "mcs-11", "mcs-14", "mcs-16", "mcs-21"]
+  ht_supported_mcs  = ["mcs-3", "mcs-8", "mcs-10", "mcs-13", "mcs-17", "mcs-18"]
+  supported         = ["2Mbps", "11Mbps", "9Mbps", "12Mbps", "24Mbps", "48Mbps"]
+  vht_basic_mcs     = "none"
+  vht_supported_mcs = "mcs0-9,mcs0-7"
 }
 ```
 
@@ -31,8 +31,16 @@ resource "routeros_capsman_rates" "test_rates" {
 - `ht_basic_mcs` (Set of String) Modulation and Coding Schemes that every connecting client must support. Refer to 802.11n for MCS specification.
 - `ht_supported_mcs` (Set of String) Modulation and Coding Schemes that this device advertises as supported. Refer to 802.11n for MCS specification.
 - `supported` (Set of String) List of supported rates. Two devices will communicate only using rates that are supported by both devices.
-- `vht_basic_mcs` (String) Modulation and Coding Schemes that every connecting client must support. Refer to 802.11ac for MCS specification. You can set MCS interval for each of Spatial Stream none - will not use selected Spatial Stream MCS 0-7 - client must support MCS-0 to MCS-7 MCS 0-8 - client must support MCS-0 to MCS-8 MCS 0-9 - client must support MCS-0 to MCS-9
-- `vht_supported_mcs` (String) Modulation and Coding Schemes that this device advertises as supported. Refer to 802.11ac for MCS specification. You can set MCS interval for each of Spatial Stream none - will not use selected Spatial Stream MCS 0-7 - devices will advertise as supported MCS-0 to MCS-7 MCS 0-8 - devices will advertise as supported MCS-0 to MCS-8 MCS 0-9 - devices will advertise as supported MCS-0 to MCS-9
+- `vht_basic_mcs` (String) Modulation and Coding Schemes that every connecting client must support. Refer to 802.11ac for MCS specification. You can set MCS interval for each of Spatial Stream
+  * none - will not use selected
+  * MCS 0-7 - client must support MCS-0 to MCS-7
+  * MCS 0-8 - client must support MCS-0 to MCS-8
+  * MCS 0-9 - client must support MCS-0 to MCS-9
+- `vht_supported_mcs` (String) Modulation and Coding Schemes that this device advertises as supported. Refer to 802.11ac for MCS specification. You can set MCS interval for each of Spatial Stream
+  * none - will not use selected
+  * MCS 0-7 - devices will advertise as supported MCS-0 to MCS-7
+  * MCS 0-8 - devices will advertise as supported MCS-0 to MCS-8
+  * MCS 0-9 - devices will advertise as supported MCS-0 to MCS-9
 
 ### Read-Only
 

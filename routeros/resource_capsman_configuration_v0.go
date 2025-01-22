@@ -10,8 +10,8 @@ func ResourceCapsManConfigurationV0() *schema.Resource {
 		Schema: map[string]*schema.Schema{
 			MetaResourcePath: PropResourcePath("/caps-man/configuration"),
 			MetaId:           PropId(Name),
-			MetaTransformSet: PropTransformSet("channel: channel.config", "datapath: datapath.config",
-				"rates: rates.config", "security: security.config"),
+			MetaTransformSet: PropTransformSet("channel.config: channel", "datapath.config: datapath",
+				"rates.config: rates", "security.config: security"),
 
 			"channel": {
 				Type:        schema.TypeMap,
@@ -20,6 +20,7 @@ func ResourceCapsManConfigurationV0() *schema.Resource {
 				Elem: &schema.Schema{
 					Type: schema.TypeString,
 				},
+				ValidateDiagFunc: ValidationMapKeyNames,
 			},
 			KeyComment: PropCommentRw,
 			"country": {
@@ -35,6 +36,7 @@ func ResourceCapsManConfigurationV0() *schema.Resource {
 				Elem: &schema.Schema{
 					Type: schema.TypeString,
 				},
+				ValidateDiagFunc: ValidationMapKeyNames,
 			},
 			"disconnect_timeout": {
 				Type:     schema.TypeString,
@@ -136,6 +138,7 @@ func ResourceCapsManConfigurationV0() *schema.Resource {
 				Elem: &schema.Schema{
 					Type: schema.TypeString,
 				},
+				ValidateDiagFunc: ValidationMapKeyNames,
 			},
 			"rx_chains": {
 				Type:        schema.TypeList,
@@ -153,6 +156,7 @@ func ResourceCapsManConfigurationV0() *schema.Resource {
 				Elem: &schema.Schema{
 					Type: schema.TypeString,
 				},
+				ValidateDiagFunc: ValidationMapKeyNames,
 			},
 			"ssid": {
 				Type:     schema.TypeString,

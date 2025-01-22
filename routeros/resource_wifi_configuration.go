@@ -38,14 +38,15 @@ func ResourceWifiConfiguration() *schema.Resource {
 	resSchema := map[string]*schema.Schema{
 		MetaResourcePath: PropResourcePath("/interface/wifi/configuration"),
 		MetaId:           PropId(Id),
-		MetaTransformSet: PropTransformSet("aaa: aaa.config", "channel: channel.config", "datapath: datapath.config",
-			"interworking: interworking.config", "security: security.config", "steering: steering.config"),
+		MetaTransformSet: PropTransformSet("aaa.config: aaa", "channel.config: channel", "datapath.config: datapath",
+			"interworking.config: interworking", "security.config: security", "steering.config: steering"),
 
 		"aaa": {
 			Type:             schema.TypeMap,
 			Optional:         true,
 			Elem:             &schema.Schema{Type: schema.TypeString},
 			Description:      "AAA inline settings.",
+			ValidateDiagFunc: ValidationMapKeyNames,
 			DiffSuppressFunc: AlwaysPresentNotUserProvided,
 		},
 		"antenna_gain": {
@@ -74,6 +75,7 @@ func ResourceWifiConfiguration() *schema.Resource {
 			Optional:         true,
 			Elem:             &schema.Schema{Type: schema.TypeString},
 			Description:      "Channel inline settings.",
+			ValidateDiagFunc: ValidationMapKeyNames,
 			DiffSuppressFunc: AlwaysPresentNotUserProvided,
 		},
 		KeyComment: PropCommentRw,
@@ -87,6 +89,7 @@ func ResourceWifiConfiguration() *schema.Resource {
 			Optional:         true,
 			Elem:             &schema.Schema{Type: schema.TypeString},
 			Description:      "Datapath inline settings.",
+			ValidateDiagFunc: ValidationMapKeyNames,
 			DiffSuppressFunc: AlwaysPresentNotUserProvided,
 		},
 		KeyDisabled: PropDisabledRw,
@@ -108,6 +111,7 @@ func ResourceWifiConfiguration() *schema.Resource {
 			Optional:         true,
 			Elem:             &schema.Schema{Type: schema.TypeString},
 			Description:      "Interworking inline settings.",
+			ValidateDiagFunc: ValidationMapKeyNames,
 			DiffSuppressFunc: AlwaysPresentNotUserProvided,
 		},
 		"manager": {
@@ -140,6 +144,7 @@ func ResourceWifiConfiguration() *schema.Resource {
 			Optional:         true,
 			Elem:             &schema.Schema{Type: schema.TypeString},
 			Description:      "Security inline settings.",
+			ValidateDiagFunc: ValidationMapKeyNames,
 			DiffSuppressFunc: AlwaysPresentNotUserProvided,
 		},
 		"ssid": {
@@ -152,6 +157,7 @@ func ResourceWifiConfiguration() *schema.Resource {
 			Optional:         true,
 			Elem:             &schema.Schema{Type: schema.TypeString},
 			Description:      "Steering inline settings.",
+			ValidateDiagFunc: ValidationMapKeyNames,
 			DiffSuppressFunc: AlwaysPresentNotUserProvided,
 		},
 		"tx_chains": {

@@ -1,7 +1,6 @@
 package routeros
 
 import (
-	"context"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -31,7 +30,9 @@ const (
 	KeyArpTimeout              = "arp_timeout"
 	KeyClampTcpMss             = "clamp_tcp_mss"
 	KeyComment                 = "comment"
+	KeyDefault                 = "default"
 	KeyDynamic                 = "dynamic"
+	KeyDefaultName             = "default_name"
 	KeyDisabled                = "disabled"
 	KeyDontFragment            = "dont_fragment"
 	KeyDscp                    = "dscp"
@@ -107,7 +108,7 @@ func PropDropByValue(s ...string) *schema.Schema {
 	}
 }
 
-// PropTransformSet List of []string{"TF", "MT"} string pairs.
+// PropTransformSet List of []string{"TF : MT", "TF : MT", ...} string pairs.
 func PropTransformSet(s ...string) *schema.Schema {
 	return &schema.Schema{
 		Type:        schema.TypeString,
@@ -120,7 +121,7 @@ func PropTransformSet(s ...string) *schema.Schema {
 	}
 }
 
-// PropSkipFields
+// PropSkipFields SnakeName notation
 func PropSkipFields(s ...string) *schema.Schema {
 	return &schema.Schema{
 		Type:        schema.TypeString,
@@ -193,6 +194,13 @@ func PropMacAddressRw(description string, required bool) *schema.Schema {
 	}
 	return mac
 }
+func PropDefaultNameRo(description string) *schema.Schema {
+	return &schema.Schema{
+		Type:        schema.TypeString,
+		Computed:    true,
+		Description: description,
+	}
+}
 
 // Schema properties.
 var (
@@ -209,12 +217,13 @@ var (
 	PropArpRw = &schema.Schema{
 		Type:     schema.TypeString,
 		Optional: true,
-		Description: `Address Resolution Protocol mode:
-		* disabled - the interface will not use ARP
-		* enabled - the interface will use ARP
-		* local-proxy-arp - the router performs proxy ARP on the interface and sends replies to the same interface
-		* proxy-arp - the router performs proxy ARP on the interface and sends replies to other interfaces
-		* reply-only - the interface will only reply to requests originated from matching IP address/MAC address combinations which are entered as static entries in the ARP table. No dynamic entries will be automatically stored in the ARP table. Therefore for communications to be successful, a valid static entry must already exist.`,
+		Description: "Address Resolution Protocol mode:\n  * disabled - the interface will not use ARP\n  * enabled - " +
+			"the interface will use ARP\n  * local-proxy-arp - the router performs proxy ARP on the interface and sends " +
+			"replies to the same interface\n  * proxy-arp - the router performs proxy ARP on the interface and sends " +
+			"replies to other interfaces\n  * reply-only - the interface will only reply to requests originated from " +
+			"matching IP address/MAC address combinations which are entered as static entries in the ARP table. No " +
+			"dynamic entries will be automatically stored in the ARP table. Therefore for communications to be " +
+			"successful, a valid static entry must already exist.",
 		ValidateFunc: validation.StringInSlice([]string{"disabled", "enabled", "local-proxy-arp", "proxy-arp",
 			"reply-only"}, false),
 		DiffSuppressFunc: AlwaysPresentNotUserProvided,
@@ -224,7 +233,7 @@ var (
 		Optional: true,
 		Description: "ARP timeout is time how long ARP record is kept in ARP table after no packets are received " +
 			"from IP. Value auto equals to the value of arp-timeout in IP/Settings, default is 30s. Can use postfix " +
-			"ms, s, M, h, d for milliseconds, seconds, minutes, hours or days. If no postfix is set then seconds (s) is used.",
+			"`ms`, `s`, `M`, `h`, `d` for milliseconds, seconds, minutes, hours or days. If no postfix is set then seconds (s) is used.",
 		ValidateFunc: validation.StringMatch(regexp.MustCompile(`^$|auto$|(\d+(ms|s|M|h|d)?)+$`),
 			"expected arp_timout value to be 'auto' string or time value"),
 		DiffSuppressFunc: AlwaysPresentNotUserProvided,
@@ -246,6 +255,11 @@ var (
 		Type:             schema.TypeBool,
 		Optional:         true,
 		DiffSuppressFunc: AlwaysPresentNotUserProvided,
+	}
+	PropDefaultRo = &schema.Schema{
+		Type:        schema.TypeBool,
+		Computed:    true,
+		Description: "It's the default item.",
 	}
 	PropDontFragmentRw = &schema.Schema{
 		Type:             schema.TypeString,
@@ -290,10 +304,11 @@ var (
 			"and cannot be directly modified.",
 	}
 	PropFilterRw = &schema.Schema{
-		Type:        schema.TypeMap,
-		Optional:    true,
-		Elem:        schema.TypeString,
-		Description: "Additional request filtering options.",
+		Type:             schema.TypeMap,
+		Optional:         true,
+		Elem:             schema.TypeString,
+		Description:      "Additional request filtering options.",
+		ValidateDiagFunc: ValidationMapKeyNames,
 	}
 	PropInactiveRo = &schema.Schema{
 		Type:     schema.TypeBool,
@@ -319,16 +334,19 @@ var (
 	PropKeepaliveRw = &schema.Schema{
 		Type:     schema.TypeString,
 		Optional: true,
-		Default:  "10s,10",
 		ValidateFunc: validation.StringMatch(regexp.MustCompile(`^(\d+[smhdw]?)+(,\d+)?$`),
 			"value must be integer[/time],integer 0..4294967295 (https://help.mikrotik.com/docs/display/ROS/GRE)"),
 		Description: "Tunnel keepalive parameter sets the time interval in which the tunnel running flag will " +
 			"remain even if the remote end of tunnel goes down. If configured time,retries fail, interface " +
 			"running flag is removed. Parameters are written in following format: " +
-			"KeepaliveInterval,KeepaliveRetries where KeepaliveInterval is time interval and " +
-			"KeepaliveRetries - number of retry attempts. KeepaliveInterval is integer 0..4294967295",
+			"`KeepaliveInterval,KeepaliveRetries` where `KeepaliveInterval` is time interval and " +
+			"`KeepaliveRetries` - number of retry attempts. `KeepaliveInterval` is integer 0..4294967295",
 		DiffSuppressFunc: func(k, old, new string, d *schema.ResourceData) bool {
 			if old == new {
+				return true
+			}
+
+			if AlwaysPresentNotUserProvided(k, old, new, d) {
 				return true
 			}
 
@@ -339,7 +357,7 @@ var (
 			o := strings.Split(old, ",")
 			n := strings.Split(new, ",")
 			if len(o) != 2 || len(n) != 2 {
-				panic(fmt.Sprintf("[GRE keepalive] wrong keepalive format, old: '%v', new: '%v'", old, new))
+				panic(fmt.Sprintf("[Keepalive] wrong keepalive format, old: '%v', new: '%v'", old, new))
 			}
 
 			// Compare keepalive retries.
@@ -350,12 +368,12 @@ var (
 			// Compare keepalive intervals.
 			oDuration, err := ParseDuration(o[0])
 			if err != nil {
-				panic("[GRE keepalive] parse 'old' duration error: " + err.Error())
+				panic("[Keepalive] parse 'old' duration error: " + err.Error())
 			}
 
 			nDuration, err := ParseDuration(n[0])
 			if err != nil {
-				panic("[GRE keepalive] parse 'new' duration error: " + err.Error())
+				panic("[Keepalive] parse 'new' duration error: " + err.Error())
 			}
 
 			return oDuration.Seconds() == nDuration.Seconds()
@@ -426,7 +444,7 @@ var (
 		ForceNew: true,
 		Description: `Before which position the rule will be inserted.  
 	> Please check the effect of this option, as it does not work as you think!  
-	> Best way to use in conjunction with a data source. See [example](../data-sources/firewall.md#example-usage).  
+	> Best way to use in conjunction with a data source. See [example](../data-sources/ip_firewall.md#example-usage).  
 `,
 	}
 	PropRemoteAddressRw = &schema.Schema{
@@ -487,6 +505,8 @@ func PropMtuRw() *schema.Schema {
 
 // Properties validation.
 var (
+	Validation64k = validation.IntBetween(0, 65535)
+
 	ValidationTime = validation.StringMatch(regexp.MustCompile(`^(\d+([smhdw]|ms)?)+$`),
 		"value should be an integer or a time interval: 0..4294967295 (seconds) or 500ms, 2d, 1w")
 
@@ -520,6 +540,10 @@ var (
 	ValidationMacAddress = validation.StringMatch(
 		regexp.MustCompile(`^!?\b(?:[0-9A-F]{2}\:){5}(?:[0-9A-F]{2})$`),
 		"Allowed MAC addresses should be [!]AA:BB:CC:DD:EE:FF",
+	)
+	ValidationMacAddressWithMask = validation.StringMatch(
+		regexp.MustCompile(`^!?\b(?:[0-9A-F]{2}\:){5}(?:[0-9A-F]{2})\/\b(?:[0-9A-F]{2}\:){5}(?:[0-9A-F]{2})$`),
+		"Allowed MAC addresses should be [!]AA:BB:CC:DD:EE:FF/FF:FF:FF:FF:FF:FF",
 	)
 
 	// ValidationMultiValInSlice returns a SchemaValidateDiagFunc which works like the StringInSlice function,
@@ -607,6 +631,30 @@ var (
 
 			return
 		}
+	}
+
+	reTerraformField = regexp.MustCompile("^[a-z0-9_]+$")
+	// ValidationMapKeyNames, A function to check map names for compliance with the TF standard.
+	// When copying keys from a real configuration it is easy to make a mistake and transfer a key
+	// containing dashes instead of underscores. This validator is added to prevent such errors.
+	ValidationMapKeyNames = func(v interface{}, path cty.Path) diag.Diagnostics {
+		var diags diag.Diagnostics
+
+		for key := range v.(map[string]interface{}) {
+			if reTerraformField.MatchString(key) {
+				continue
+			}
+
+			diags = append(diags, diag.Diagnostic{
+				Severity: diag.Error,
+				Summary:  "Invalid attribute name",
+				Detail: fmt.Sprintf("%s: Attribute name may only contain lowercase alphanumeric characters & "+
+					"underscores.", key),
+				AttributePath: append(path, cty.IndexStep{Key: cty.StringVal(key)}),
+			})
+		}
+
+		return diags
 	}
 )
 
@@ -722,51 +770,3 @@ var DeleteSystemObject = []diag.Diagnostic{{
 		"This action will remove the object from the Terraform state. " +
 		"See also: 'terraform state rm' https://developer.hashicorp.com/terraform/cli/commands/state/rm",
 }}
-
-// ImportStateCustomContext is an implementation of StateContextFunc that can be used to
-// import resources with the ability to explicitly or implicitly specify a key field.
-// `terraform [global options] import [options] ADDR ID`.
-// During import the content of the `ID` is checked and depending on the specified string it is possible to automatically search for the internal Mikrotik identifier.
-// Logic of `ID` processing
-// - The first character of the string contains an asterisk (standard Mikrotik identifier `*3E`): import without additional search.
-// - String containing no "=" character (`wifi-01`): the "name" field is used for searching.
-// - String containing only one "=" character (`"comment=hAP-ac3"`): the "word left" and "word right" pair is used for searching.
-func ImportStateCustomContext(s map[string]*schema.Schema) schema.StateContextFunc {
-	return func(ctx context.Context, d *schema.ResourceData, m interface{}) ([]*schema.ResourceData, error) {
-		id := d.Id()
-		fieldName := "name"
-
-		if len(id) == 0 || id[0] == '*' {
-			return []*schema.ResourceData{d}, nil
-		} else {
-			// By default, we filter by the "name" field
-			if s := strings.Split(id, "="); len(s) == 2 {
-				// field=value
-				fieldName = s[0]
-				id = s[1]
-			}
-		}
-
-		path := s[MetaResourcePath].Default.(string)
-
-		res, err := ReadItemsFiltered([]string{SnakeToKebab(fieldName) + "=" + id}, path, m.(Client))
-		if err != nil {
-			return nil, err
-		}
-
-		switch len(*res) {
-		case 0:
-			return nil, fmt.Errorf("resource not found: %v=%v", fieldName, id)
-		case 1:
-			retId, ok := (*res)[0][Id.String()]
-			if !ok {
-				return nil, fmt.Errorf("attribute %v not found in the response", Id.String())
-			}
-			d.SetId(retId)
-		default:
-			return nil, fmt.Errorf("more than one resource found: %v=%v", fieldName, id)
-		}
-
-		return []*schema.ResourceData{d}, nil
-	}
-}

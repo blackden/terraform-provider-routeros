@@ -44,6 +44,7 @@ resource "routeros_ip_dhcp_server_lease" "dhcp_lease" {
 - `agent_circuit_id` (String) Circuit ID of DHCP relay agent. If each character should be valid ASCII text symbol or else this value is displayed as hex dump.
 - `agent_remote_id` (String) Remote ID, set by DHCP relay agent.
 - `blocked` (Boolean) Whether the lease is blocked.
+- `class_id` (String) Class ID of the client. This option is available in RouterOS starting from version 7.16.
 - `dynamic` (Boolean) Whether the dhcp lease is static or dynamic. Dynamic leases are not guaranteed to continue to be assigned to that specific device.
 - `expires_after` (String) Time until lease expires.
 - `host_name` (String) The hostname of the device

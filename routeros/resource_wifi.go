@@ -34,14 +34,15 @@ func ResourceWifi() *schema.Resource {
 	resSchema := map[string]*schema.Schema{
 		MetaResourcePath: PropResourcePath("/interface/wifi"),
 		MetaId:           PropId(Id),
-		MetaTransformSet: PropTransformSet("aaa: aaa.config", "channel: channel.config", "configuration: configuration.config",
-			"datapath: datapath.config", "interworking: interworking.config", "security: security.config", "steering: steering.config"),
+		MetaTransformSet: PropTransformSet("aaa.config: aaa", "channel.config: channel", "configuration.config: configuration",
+			"datapath.config: datapath", "interworking.config: interworking", "security.config: security", "steering.config: steering"),
 
 		"aaa": {
 			Type:             schema.TypeMap,
 			Optional:         true,
 			Elem:             &schema.Schema{Type: schema.TypeString},
 			Description:      "AAA inline settings.",
+			ValidateDiagFunc: ValidationMapKeyNames,
 			DiffSuppressFunc: AlwaysPresentNotUserProvided,
 		},
 		KeyArp:        PropArpRw,
@@ -56,6 +57,7 @@ func ResourceWifi() *schema.Resource {
 			Optional:         true,
 			Elem:             &schema.Schema{Type: schema.TypeString},
 			Description:      "Channel inline settings.",
+			ValidateDiagFunc: ValidationMapKeyNames,
 			DiffSuppressFunc: AlwaysPresentNotUserProvided,
 		},
 		"configuration": {
@@ -63,6 +65,7 @@ func ResourceWifi() *schema.Resource {
 			Optional:         true,
 			Elem:             &schema.Schema{Type: schema.TypeString},
 			Description:      "Configuration inline settings.",
+			ValidateDiagFunc: ValidationMapKeyNames,
 			DiffSuppressFunc: AlwaysPresentNotUserProvided,
 		},
 		"datapath": {
@@ -70,15 +73,12 @@ func ResourceWifi() *schema.Resource {
 			Optional:         true,
 			Elem:             &schema.Schema{Type: schema.TypeString},
 			Description:      "Datapath inline settings.",
+			ValidateDiagFunc: ValidationMapKeyNames,
 			DiffSuppressFunc: AlwaysPresentNotUserProvided,
 		},
-		KeyComment: PropCommentRw,
-		"default_name": {
-			Type:        schema.TypeString,
-			Computed:    true,
-			Description: "The interface's default name.",
-		},
-		KeyDisabled: PropDisabledRw,
+		KeyComment:     PropCommentRw,
+		KeyDefaultName: PropDefaultNameRo("The interface's default name."),
+		KeyDisabled:    PropDisabledRw,
 		"disable_running_check": {
 			Type:             schema.TypeBool,
 			Optional:         true,
@@ -95,6 +95,7 @@ func ResourceWifi() *schema.Resource {
 			Optional:         true,
 			Elem:             &schema.Schema{Type: schema.TypeString},
 			Description:      "Interworking inline settings.",
+			ValidateDiagFunc: ValidationMapKeyNames,
 			DiffSuppressFunc: AlwaysPresentNotUserProvided,
 		},
 		KeyL2Mtu: PropL2MtuRw,
@@ -137,6 +138,7 @@ func ResourceWifi() *schema.Resource {
 			Optional:         true,
 			Elem:             &schema.Schema{Type: schema.TypeString},
 			Description:      "Security inline settings.",
+			ValidateDiagFunc: ValidationMapKeyNames,
 			DiffSuppressFunc: AlwaysPresentNotUserProvided,
 		},
 		"steering": {
@@ -144,6 +146,7 @@ func ResourceWifi() *schema.Resource {
 			Optional:         true,
 			Elem:             &schema.Schema{Type: schema.TypeString},
 			Description:      "Steering inline settings.",
+			ValidateDiagFunc: ValidationMapKeyNames,
 			DiffSuppressFunc: AlwaysPresentNotUserProvided,
 		},
 	}
