@@ -67,9 +67,10 @@ func ResourceRoutingRule() *schema.Resource {
 			Description: "Match specific routing mark.",
 		},
 		"realm": {
-			Type:        schema.TypeString,
-			Optional:    true,
-			Description: "Routing realm to match. Available in RouterOS starting from version 7.22.",
+			Type:             schema.TypeString,
+			Optional:         true,
+			Description:      "Routing realm to match. Available in RouterOS starting from version 7.22.",
+			DiffSuppressFunc: AlwaysPresentNotUserProvided,
 		},
 		"src_address": {
 			Type:        schema.TypeString,
@@ -83,9 +84,10 @@ func ResourceRoutingRule() *schema.Resource {
 			DiffSuppressFunc: AlwaysPresentNotUserProvided,
 		},
 		KeyVrf: {
-			Type:        schema.TypeString,
-			Optional:    true,
-			Description: "VRF to match. Available in RouterOS starting from version 7.22.",
+			Type:             schema.TypeString,
+			Optional:         true,
+			Description:      "VRF to match. Available in RouterOS starting from version 7.22.",
+			DiffSuppressFunc: AlwaysPresentNotUserProvided,
 		},
 	}
 

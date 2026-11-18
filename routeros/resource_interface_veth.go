@@ -44,10 +44,9 @@ func ResourceInterfaceVeth() *schema.Resource {
 			DiffSuppressFunc: AlwaysPresentNotUserProvided,
 		},
 		"dhcp_address": {
-			Type:         schema.TypeString,
-			Optional:     true,
-			Description:  "DHCP IP address.",
-			ValidateFunc: validation.IsIPv4Address,
+			Type:        schema.TypeString,
+			Computed:    true,
+			Description: "The address the DHCP client leased for the container, when `dhcp = true` (read-only).",
 		},
 		"gateway": {
 			Type:         schema.TypeString,
