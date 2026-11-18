@@ -24,7 +24,6 @@ resource "routeros_interface_veth" "test" {
 - `comment` (String)
 - `container_mac_address` (String) Container MAC address
 - `dhcp` (Boolean) Whether to create a dynamic DHCP client for this interface.
-- `dhcp_address` (String) DHCP IP address.
 - `disabled` (Boolean)
 - `gateway` (String) Gateway IP address.
 - `gateway6` (String) Gateway IPv6 address.
@@ -32,6 +31,7 @@ resource "routeros_interface_veth" "test" {
 
 ### Read-Only
 
+- `dhcp_address` (String) The address the DHCP client leased for the container, when `dhcp = true` (read-only).
 - `id` (String) The ID of this resource.
 - `running` (Boolean)
 

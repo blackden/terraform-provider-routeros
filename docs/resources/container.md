@@ -3,13 +3,29 @@
 
 ## Example Usage
 ```terraform
+resource "routeros_container_envs" "busybox_tz" {
+  list  = "busybox"
+  key   = "TZ"
+  value = "UTC"
+}
+
+resource "routeros_container_mounts" "busybox_www" {
+  list = "busybox"
+  src  = "/usb1-part1/containers/busybox/www"
+  dst  = "/www"
+}
+
 resource "routeros_container" "busybox" {
   remote_image  = "library/busybox:1.35.0"
-  cmd           = "/bin/httpd -f -p 8080"
+  cmd           = "/bin/httpd -f -p 8080 -h /www"
   interface     = routeros_interface_veth.busybox.name
   logging       = true
   root_dir      = "/usb1-part1/containers/busybox/root"
   start_on_boot = true
+  envlists      = [routeros_container_envs.busybox_tz.list]
+  mountlists    = [routeros_container_mounts.busybox_www.list]
+  memory_high   = "64M"
+  memory_max    = "128M"
 }
 ```
 
@@ -32,21 +48,22 @@ resource "routeros_container" "busybox" {
 - `domain_name` (String) Container NIS domain name
 - `entrypoint` (String) An ENTRYPOINT allows to specify executable to run when starting container. Example: /bin/sh
 - `env` (Set of String) list of environmental variables (in the form `key=val`) to be used with container
-- `envlists` (Set of String) list of environmental variables lists (configured under /container envs) to be used with container
+- `envlists` (Set of String) Lists of environment variables (configured under /container/envs) to be used with the container. RouterOS before 7.20 has a single `envlist` parameter, the provider maps the attribute to it.
 - `file` (String) container *tar.gz tarball if the container is imported from a file
 - `hostname` (String) Container host name
 - `hosts` (String)
 - `layer_dir` (String) Override container config layer dir
 - `logging` (Boolean) if set to yes, all container-generated output will be shown in the RouterOS log
 - `memory_high` (String) RAM usage limit in bytes for a specific container (string value).
+- `memory_max` (String) Max RAM usage limit in bytes for a specific container (string value). The container process will be terminated if the limit is smaller than the container memory usage.
 - `mount` (Set of String) Mounts (in the form `/src:/mnt:rw`) to be used with this container
-- `mountlists` (Set of String) Mount lists from /container/mounts/ sub-menu to be used with this container
+- `mountlists` (Set of String) Mount lists from /container/mounts/ sub-menu to be used with this container. RouterOS before 7.21 has a `mounts` parameter instead, the provider maps the attribute to it.
 - `name` (String) Assign a name to the container
 - `remote_image` (String) The container image name to be installed if an external registry is used (configured under /container/config set registry-url=...)
 - `root_dir` (String) Used to save container store outside main memory
 - `running` (Boolean) Container state.
 - `start_on_boot` (Boolean) Start the container on boot
-- `stop_signal` (String) Signal to stop the container.
+- `stop_signal` (String) Signal to stop the container. The RouterOS 7.24 CLI reference uses the `15-SIGTERM` form, some older versions accept only the number (`15`, upstream issue #969); both forms are treated as equal.
 - `stop_time` (String)
 - `timeouts` (Block, Optional) (see [below for nested schema](#nestedblock--timeouts))
 - `user` (String) Sets the username used

@@ -5,7 +5,7 @@
 ```terraform
 resource "routeros_container_config" "config" {
   registry_url = "https://registry-1.docker.io"
-  ram_high     = "0"
+  memory_high  = "0"
   tmpdir       = "/usb1-part1/containers/tmp"
   layer_dir    = "/usb1-part1/containers/layers"
 }
@@ -17,8 +17,9 @@ resource "routeros_container_config" "config" {
 ### Optional
 
 - `layer_dir` (String) Container layers directory.
+- `memory_high` (String) RAM usage limit for all containers. RouterOS before 7.20 calls the parameter `ram-high`, the provider maps the attribute to it. The attribute was named `ram_high` in the upstream provider.
+- `memory_max` (String) Max RAM usage limit for all containers (RouterOS 7.20+).
 - `password` (String, Sensitive) Specifies the password for authentication (starting from ROS 7.8)
-- `ram_high` (String) RAM usage limit.
 - `registry_url` (String) External registry url from where the container will be downloaded.
 - `tmpdir` (String) Container extraction directory.
 - `username` (String) Specifies the username for authentication (starting from ROS 7.8)

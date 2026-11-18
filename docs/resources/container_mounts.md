@@ -4,7 +4,7 @@
 ## Example Usage
 ```terraform
 resource "routeros_container_mounts" "caddyfile" {
-  name = "Caddyfile"
+  list = "caddy"
   src  = "/usb1-part1/containers/caddy/Caddyfile"
   dst  = "/etc/caddy/Caddyfile"
 }
@@ -16,13 +16,14 @@ resource "routeros_container_mounts" "caddyfile" {
 ### Required
 
 - `dst` (String) Specifies destination path of the mount, which points to defined location in container
-- `list` (String) Mount list this mount is for
+- `list` (String) Mount list this mount is for. RouterOS before 7.21 calls the parameter `name`, the provider maps the attribute to it.
 - `src` (String) Specifies source path of the mount, which points to a RouterOS location
 
 ### Optional
 
-- `disabled` (Boolean) Whether the mount is disabled
-- `read_only` (Boolean) Whether to mount read-only
+- `disabled` (Boolean)
+- `mode` (String) Mount mode (RouterOS 7.24 CLI reference: `rw`, `ro`, `rw,noexec`, `ro,noexec`).
+- `read_only` (Boolean) Whether to mount read-only (RouterOS 7.21-7.2x, replaced by `mode` later).
 
 ### Read-Only
 
@@ -31,8 +32,9 @@ resource "routeros_container_mounts" "caddyfile" {
 ## Import
 Import is supported using the following syntax:
 ```shell
-# Import with the name of the container mount in case of the example use Caddyfile
-terraform import routeros_container_mounts.caddyfile Caddyfile
-#Or you can import a resource using one of its attributes
-terraform import routeros_container_mounts.caddyfile "name=xxx"
+#The ID can be found via API or the terminal
+#The command for the terminal is -> :put [/container/mounts get [print show-ids]]
+terraform import routeros_container_mounts.caddyfile "*1"
+#Or you can import a resource using one of its attributes (it must match exactly one entry)
+terraform import routeros_container_mounts.caddyfile "dst=/etc/caddy/Caddyfile"
 ```

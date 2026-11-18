@@ -4,7 +4,7 @@
 ## Example Usage
 ```terraform
 resource "routeros_container_envs" "test_envs" {
-  name  = "test_envs"
+  list  = "test_envs"
   key   = "TZ"
   value = "UTC"
 }
@@ -16,12 +16,12 @@ resource "routeros_container_envs" "test_envs" {
 ### Required
 
 - `key` (String) Key of the environment variable.
-- `name` (String) Name of the environment variables list.
+- `list` (String) Name of the environment variables list. RouterOS before 7.20 calls the parameter `name`, the provider maps the attribute to it.
 - `value` (String) Value of the environment variable.
 
 ### Optional
 
-- `disabled` (Boolean) Whether the env var is disabled.
+- `disabled` (Boolean)
 
 ### Read-Only
 
@@ -33,6 +33,6 @@ Import is supported using the following syntax:
 #The ID can be found via API or the terminal
 #The command for the terminal is -> :put [/container/envs get [print show-ids]]
 terraform import routeros_container_envs.test_envs "*1"
-#Or you can import a resource using one of its attributes
-terraform import routeros_container_envs.test_envs "name=xxx"
+#Or you can import a resource using one of its attributes (it must match exactly one entry)
+terraform import routeros_container_envs.test_envs "key=TZ"
 ```

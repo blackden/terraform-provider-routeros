@@ -79,7 +79,7 @@ resource "routeros_interface_bridge" "mlag_bridge" {
 - `startup_query_interval` (String) Used to change the amount of time after a bridge starts sending out IGMP general membership queries after the bridge is enabled. This property only has effect when igmp-snooping and multicast-querier is set to yes.
 - `transmit_hold_count` (Number) The Transmit Hold Count used by the Port Transmit state machine to limit transmission rate.
 - `vlan_filtering` (Boolean) Globally enables or disables VLAN functionality for bridge.
-- `vrf` (String) Virtual Routing and Forwarding instance.
+- `vrf` (String) The VRF table this resource operates on.
 
 ### Read-Only
 

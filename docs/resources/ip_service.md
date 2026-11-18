@@ -50,13 +50,13 @@ resource "routeros_ip_service" "enabled" {
 
 ### Required
 
-- `numbers` (String) The name of the service whose settings will be changed ( api, api-ssl, ftp, ssh, telnet, winbox, www, www-ssl ).
+- `numbers` (String) The name of the service whose settings will be changed ( api, api-ssl, ftp, reverse-proxy, ssh, telnet, winbox, www, www-ssl ).
 - `port` (Number) The port particular service listens on.
 
 ### Optional
 
 - `address` (String) List of IP/IPv6 prefixes from which the service is accessible.
-- `certificate` (String) The name of the certificate used by a particular service. Applicable only for services that depend on certificates ( www-ssl, api-ssl ).
+- `certificate` (String) The name of the certificate used by a particular service. Applicable only for services that depend on certificates ( www-ssl, api-ssl, reverse-proxy ). For reverse-proxy the certificate is used by the /ip/reverse-proxy rules that have none of their own.
 - `disabled` (Boolean)
 - `max_sessions` (Number) Maximum number of concurrent connections to a particular service. This option is available in RouterOS starting from version 7.16.
 - `tls_version` (String) Specifies which TLS versions to allow by a particular service.
