@@ -123,6 +123,18 @@ attribute names are the same as upstream, except for the container attributes
 renamed to follow RouterOS 7.21+ (see above). Run `plan` before `apply` and
 check the output.
 
+## Acceptance tests
+
+CI runs the acceptance tests against RouterOS CHR in docker (7.23.8 and
+7.24.6, image `evilfreelancer/docker-routeros`). That image has a single
+network interface, so the tests that need `ether2`-`ether4` are skipped:
+`TestAccInterfaceBondingTest_basic`, `TestAccInterfaceEthernetTest_basic`,
+`TestAccInterfaceEthernetTest_import`, `TestAccIpHotspotTest_basic`,
+`TestAccRoutingBfdConfigurationTest_basic`,
+`TestAccRoutingOspfInterfaceTemplateTest_basic` and
+`TestAccToolSnifferTest_basic`. This is a deliberate coverage gap; re-enable
+them when a multi-NIC CHR image is available.
+
 ## Versions
 
 The fork follows the upstream version line. `1.100.0` is the first fork release;
