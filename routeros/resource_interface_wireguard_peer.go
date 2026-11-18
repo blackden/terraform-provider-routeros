@@ -21,6 +21,15 @@ func ResourceInterfaceWireguardPeer() *schema.Resource {
 				// ValidateFunc: ValidationIpAddress,
 			},
 		},
+		"client_allowed_address": {
+			Type:     schema.TypeString,
+			Optional: true,
+			Description: "Allowed address for the client side configuration (QR code / config export). " +
+				"Returned by RouterOS 7.21+ (upstream issue #966).",
+			DiffSuppressFunc: AlwaysPresentNotUserProvided,
+			// TODO: format not checked on a router (one prefix or a comma-separated list?);
+			// kept as a plain string like client_address.
+		},
 		"client_address": {
 			Type:     schema.TypeString,
 			Optional: true,
