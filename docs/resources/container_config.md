@@ -21,6 +21,7 @@ resource "routeros_container_config" "config" {
 - `memory_max` (String) Max RAM usage limit for all containers (RouterOS 7.20+).
 - `password` (String, Sensitive) Specifies the password for authentication (starting from ROS 7.8)
 - `registry_url` (String) External registry url from where the container will be downloaded.
+- `swap_max` (String) Max swap usage limit for all containers (RouterOS 7.24: `unlimited` or a size, container swap limits).
 - `tmpdir` (String) Container extraction directory.
 - `username` (String) Specifies the username for authentication (starting from ROS 7.8)
 

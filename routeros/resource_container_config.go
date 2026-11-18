@@ -40,6 +40,13 @@ func ResourceContainerConfig() *schema.Resource {
 			Description:      "Max RAM usage limit for all containers (RouterOS 7.20+).",
 			DiffSuppressFunc: BytesEqual,
 		},
+		"swap_max": {
+			Type:     schema.TypeString,
+			Optional: true,
+			Description: "Max swap usage limit for all containers (RouterOS 7.24: `unlimited` or a size, " +
+				"container swap limits).",
+			DiffSuppressFunc: BytesEqual,
+		},
 		"tmpdir": {
 			Type:        schema.TypeString,
 			Optional:    true,

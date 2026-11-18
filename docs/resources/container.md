@@ -52,6 +52,7 @@ resource "routeros_container" "busybox" {
 - `file` (String) container *tar.gz tarball if the container is imported from a file
 - `hostname` (String) Container host name
 - `hosts` (String)
+- `ignore_remote_image_change` (Boolean) Do not track changes of the remote image (RouterOS 7.2x).
 - `layer_dir` (String) Override container config layer dir
 - `logging` (Boolean) if set to yes, all container-generated output will be shown in the RouterOS log
 - `memory_high` (String) RAM usage limit in bytes for a specific container (string value).
@@ -59,12 +60,19 @@ resource "routeros_container" "busybox" {
 - `mount` (Set of String) Mounts (in the form `/src:/mnt:rw`) to be used with this container
 - `mountlists` (Set of String) Mount lists from /container/mounts/ sub-menu to be used with this container. RouterOS before 7.21 has a `mounts` parameter instead, the provider maps the attribute to it.
 - `name` (String) Assign a name to the container
+- `privileged` (Boolean) Run the container in privileged mode (RouterOS 7.2x).
 - `remote_image` (String) The container image name to be installed if an external registry is used (configured under /container/config set registry-url=...)
+- `restart_interval` (String) Delay before restarting the container by `restart_policy`.
+- `restart_max_count` (Number) Maximum number of restarts by `restart_policy` (0 is no limit).
+- `restart_policy` (String) Restart the container when it stops: `always`, `no` or `on-failure`.
 - `root_dir` (String) Used to save container store outside main memory
 - `running` (Boolean) Container state.
+- `shm_size` (String) Size of /dev/shm of the container.
 - `start_on_boot` (Boolean) Start the container on boot
+- `stop_on_unhealthy` (Boolean) Stop the container when its health check fails.
 - `stop_signal` (String) Signal to stop the container. The RouterOS 7.24 CLI reference uses the `15-SIGTERM` form, some older versions accept only the number (`15`, upstream issue #969); both forms are treated as equal.
 - `stop_time` (String)
+- `swap_max` (String) Max swap usage limit for the container (RouterOS 7.24 changelog: container swap limits).
 - `timeouts` (Block, Optional) (see [below for nested schema](#nestedblock--timeouts))
 - `user` (String) Sets the username used
 - `workdir` (String) The working directory for cmd entrypoint

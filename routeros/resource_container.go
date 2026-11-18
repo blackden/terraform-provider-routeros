@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/retry"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 )
 
 /*
@@ -32,7 +33,15 @@ func ResourceContainer() *schema.Resource {
 	resSchema := map[string]*schema.Schema{
 		MetaResourcePath: PropResourcePath("/container"),
 		MetaId:           PropId(Id),
-		MetaSkipFields:   PropSkipFields("running", "starting", "stopped", "passed_devs", "stopping", "extracting", "config_json"),
+		// State flags (running ... starting_with_healthcheck) are read by resRead/containerState;
+		// default_* (image defaults), env_current, container_size, restart_count, healthcheck_status are
+		// read-only values RouterOS 7.23/7.24 prints with `print detail`.
+		MetaSkipFields: PropSkipFields("running", "starting", "stopped", "passed_devs", "stopping", "extracting", "config_json",
+			"healthy", "unhealthy", "starting_with_healthcheck",
+			"container_size", "env_current", "healthcheck_status", "restart_count",
+			"default_cmd", "default_dns", "default_entrypoint", "default_shell", "default_stop_signal", "default_user",
+			"default_workdir", "default_healthcheck_cmd", "default_healthcheck_interval", "default_healthcheck_retries",
+			"default_healthcheck_start_interval", "default_healthcheck_start_period", "default_healthcheck_timeout"),
 
 		"arch": {
 			Type:        schema.TypeString,
@@ -123,6 +132,12 @@ func ResourceContainer() *schema.Resource {
 			Computed:    true,
 			Description: "SHA of image in use",
 		},
+		"ignore_remote_image_change": {
+			Type:             schema.TypeBool,
+			Optional:         true,
+			Description:      "Do not track changes of the remote image (RouterOS 7.2x).",
+			DiffSuppressFunc: AlwaysPresentNotUserProvided,
+		},
 		"interface": {
 			Type:        schema.TypeString,
 			Required:    true,
@@ -187,6 +202,12 @@ func ResourceContainer() *schema.Resource {
 			Computed:    true,
 			Description: "The OS of the container image",
 		},
+		"privileged": {
+			Type:             schema.TypeBool,
+			Optional:         true,
+			Description:      "Run the container in privileged mode (RouterOS 7.2x).",
+			DiffSuppressFunc: AlwaysPresentNotUserProvided,
+		},
 		"remote_image": {
 			Type:         schema.TypeString,
 			Optional:     true,
@@ -207,6 +228,25 @@ func ResourceContainer() *schema.Resource {
 				return old == new || old == new+":latest"
 			},
 		},
+		"restart_interval": {
+			Type:             schema.TypeString,
+			Optional:         true,
+			Description:      "Delay before restarting the container by `restart_policy`.",
+			DiffSuppressFunc: TimeEqual,
+		},
+		"restart_max_count": {
+			Type:             schema.TypeInt,
+			Optional:         true,
+			Description:      "Maximum number of restarts by `restart_policy` (0 is no limit).",
+			DiffSuppressFunc: AlwaysPresentNotUserProvided,
+		},
+		"restart_policy": {
+			Type:             schema.TypeString,
+			Optional:         true,
+			Description:      "Restart the container when it stops: `always`, `no` or `on-failure`.",
+			ValidateFunc:     validation.StringInSlice([]string{"always", "no", "on-failure"}, false),
+			DiffSuppressFunc: AlwaysPresentNotUserProvided,
+		},
 		"root_dir": {
 			Type:             schema.TypeString,
 			Optional:         true,
@@ -219,6 +259,12 @@ func ResourceContainer() *schema.Resource {
 			Description: "Container state.",
 			Default:     true,
 		},
+		"shm_size": {
+			Type:             schema.TypeString,
+			Optional:         true,
+			Description:      "Size of /dev/shm of the container.",
+			DiffSuppressFunc: BytesEqual,
+		},
 		"start_on_boot": {
 			Type:        schema.TypeBool,
 			Optional:    true,
@@ -228,6 +274,12 @@ func ResourceContainer() *schema.Resource {
 			Type:        schema.TypeString,
 			Computed:    true,
 			Description: "The status of the container",
+		},
+		"stop_on_unhealthy": {
+			Type:             schema.TypeBool,
+			Optional:         true,
+			Description:      "Stop the container when its health check fails.",
+			DiffSuppressFunc: AlwaysPresentNotUserProvided,
 		},
 		"stop_signal": {
 			Type:     schema.TypeString,
@@ -248,6 +300,12 @@ func ResourceContainer() *schema.Resource {
 			Type:             schema.TypeString,
 			Optional:         true,
 			DiffSuppressFunc: AlwaysPresentNotUserProvided,
+		},
+		"swap_max": {
+			Type:             schema.TypeString,
+			Optional:         true,
+			Description:      "Max swap usage limit for the container (RouterOS 7.24 changelog: container swap limits).",
+			DiffSuppressFunc: BytesEqual,
 		},
 		"tag": {
 			Type:        schema.TypeString,
@@ -293,11 +351,7 @@ func ResourceContainer() *schema.Resource {
 		// The `running` field is excluded from the default read (MetaSkipFields), so the state is
 		// synchronized here. RouterOS returns the container state in the `running` field ("true"/"false"),
 		// older versions returned a `status` field instead.
-		if v, ok := item["running"]; ok {
-			d.Set("running", BoolFromMikrotikJSON(v))
-		} else {
-			d.Set("running", item["status"] == "running")
-		}
+		d.Set("running", containerRunning(item))
 		d.Set("status", containerState(item))
 
 		tag, ok := d.Get("tag").(string)
@@ -484,6 +538,14 @@ func containerState(item MikrotikItem) string {
 	if status, ok := item["status"]; ok && status != "" {
 		return status
 	}
+	// A container with a health check has no `running` flag. RouterOS 7.23.8 prints it with
+	// C - STARTING-WITH-HEALTHCHECK, 7.24.6 with H - HEALTHY; the process
+	// runs in all of these states, so they are "running" for the start/stop wait and the state.
+	for _, state := range []string{"healthy", "unhealthy", "starting-with-healthcheck"} {
+		if BoolFromMikrotikJSON(item[state]) {
+			return "running"
+		}
+	}
 	// TODO: the flag names are taken from MetaSkipFields and the 7.24 print flags
 	// (S stopped, N starting, R running, T stopping, E extracting); verify the REST output on 7.23.
 	for _, state := range []string{"running", "starting", "stopping", "stopped", "extracting", "pulling", "downloading"} {
@@ -495,6 +557,15 @@ func containerState(item MikrotikItem) string {
 		}
 	}
 	return ""
+}
+
+// containerRunning reports whether the container process runs: the `running` flag (7.24.1+, PR #1015),
+// the health check flags (healthy, unhealthy, starting-with-healthcheck) or `status` of older RouterOS.
+func containerRunning(item MikrotikItem) bool {
+	if BoolFromMikrotikJSON(item["running"]) {
+		return true
+	}
+	return containerState(item) == "running"
 }
 
 func containerStateRefresh(s map[string]*schema.Schema, d *schema.ResourceData, m interface{}) retry.StateRefreshFunc {
