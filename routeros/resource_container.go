@@ -354,8 +354,14 @@ func ResourceContainer() *schema.Resource {
 		d.Set("running", containerRunning(item))
 		d.Set("status", containerState(item))
 
+		// RouterOS 7.2x returns `remote-image` as it was set (7.24.6: "library/busybox:latest",
+		// tag "registry-1.docker.io/library/busybox:latest", assumed-registry-url "docker.io" without a scheme).
+		// It is already read into remote_image; deriving it from the tag gave a replacement on every plan.
+		// Older RouterOS without the field: remote_image from the tag without the registry URL, as before.
+		_, hasRemoteImage := item["remote-image"]
+
 		tag, ok := d.Get("tag").(string)
-		if ok && tag != "" {
+		if ok && tag != "" && !hasRemoteImage {
 			// Get Registry URL.
 			res, err := ReadItems(nil, "/container/config", m.(Client))
 			if err != nil {
@@ -412,30 +418,45 @@ func ResourceContainer() *schema.Resource {
 		}
 
 		if d.Get("running").(bool) {
-			startContainer(ctx, resSchema, d, m)
+			if diags := startContainer(ctx, resSchema, d, m); diags.HasError() {
+				return diags
+			}
 		}
 
-		return ResourceRead(ctx, resSchema, d, m)
+		// resRead, not ResourceRead: `running` and `status` are read from the state flags.
+		return resRead(ctx, d, m)
 	}
 
 	resUpdate := func(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-		stopContainer(ctx, resSchema, d, m)
+		// A change of `running` alone is only /container/start or /container/stop. A PATCH
+		// with `remote-image` makes RouterOS 7.24.6 download the image again.
+		if d.HasChangesExcept("running") {
+			if diags := stopContainer(ctx, resSchema, d, m); diags.HasError() {
+				return diags
+			}
+			if diags := containerUpdate(ctx, resSchema, d, m); diags.HasError() {
+				return diags
+			}
+		}
 
-		// Run DefaultUpdate.
-		diags := ResourceUpdate(ctx, resSchema, d, m)
+		var diags diag.Diagnostics
+		if d.Get("running").(bool) {
+			diags = startContainer(ctx, resSchema, d, m)
+		} else {
+			diags = stopContainer(ctx, resSchema, d, m)
+		}
 		if diags.HasError() {
 			return diags
 		}
-		if d.Get("running").(bool) {
-			startContainer(ctx, resSchema, d, m)
-		}
 
-		return ResourceRead(ctx, resSchema, d, m)
+		return resRead(ctx, d, m)
 	}
 
 	resDelete := func(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 		// Stop container
-		stopContainer(ctx, resSchema, d, m)
+		if diags := stopContainer(ctx, resSchema, d, m); diags.HasError() {
+			return diags
+		}
 
 		// Run DefaultDelete.
 		return ResourceDelete(ctx, resSchema, d, m)
@@ -461,40 +482,40 @@ func ResourceContainer() *schema.Resource {
 }
 
 func startContainer(ctx context.Context, s map[string]*schema.Schema, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	stopStateConf := &retry.StateChangeConf{
+	// The image is downloaded and extracted after `add` (and after some updates): wait for it.
+	pullStateConf := &retry.StateChangeConf{
 		Pending: []string{"pulling", "extracting"},
-		Target:  []string{"stopped"},
+		Target:  []string{"stopped", "running", "starting"},
 		Refresh: containerStateRefresh(s, d, m),
 		Timeout: d.Timeout(schema.TimeoutCreate),
 	}
-	_, err := stopStateConf.WaitForStateContext(ctx)
+	res, err := pullStateConf.WaitForStateContext(ctx)
 	if err != nil {
 		err = fmt.Errorf("error waiting for container instance (%s) to be pulled: %s", d.Id(), err)
 		return diag.FromErr(err)
 	}
-
-	item := MikrotikItem{"number": d.Id()}
-
-	// Start container
-	var resUrl = &URL{
-		Path: s[MetaResourcePath].Default.(string),
-	}
-	if m.(Client).GetTransport() == TransportREST {
-		resUrl.Path += "/start"
+	if containerState((*res.(*[]MikrotikItem))[0]) != "stopped" {
+		// Already running or starting.
+		return startWait(ctx, s, d, m)
 	}
 
-	err = m.(Client).SendRequest(crudStart, resUrl, item, nil)
+	// Start container. RouterOS 7.24.6: the argument is `numbers`, `number` is 400 "unknown parameter number".
+	err = containerCommand(crudStart, "/start", s, d, m)
 	if err != nil {
-		return diag.FromErr(err)
+		return diag.FromErr(fmt.Errorf("error starting container instance (%s): %s", d.Id(), err))
 	}
 
+	return startWait(ctx, s, d, m)
+}
+
+func startWait(ctx context.Context, s map[string]*schema.Schema, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	startStateConf := &retry.StateChangeConf{
 		Pending: []string{"stopped", "starting"},
 		Target:  []string{"running"},
 		Refresh: containerStateRefresh(s, d, m),
 		Timeout: d.Timeout(schema.TimeoutCreate),
 	}
-	_, err = startStateConf.WaitForStateContext(ctx)
+	_, err := startStateConf.WaitForStateContext(ctx)
 	if err != nil {
 		err = fmt.Errorf("error waiting for container instance (%s) to be started: %s", d.Id(), err)
 		return diag.FromErr(err)
@@ -504,27 +525,37 @@ func startContainer(ctx context.Context, s map[string]*schema.Schema, d *schema.
 }
 
 func stopContainer(ctx context.Context, s map[string]*schema.Schema, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	item := MikrotikItem{"number": d.Id()}
-
-	var resUrl = &URL{
-		Path: s[MetaResourcePath].Default.(string),
-	}
-	if m.(Client).GetTransport() == TransportREST {
-		resUrl.Path += "/stop"
-	}
-
-	err := m.(Client).SendRequest(crudStop, resUrl, item, nil)
+	// Stop only a running container: there is nothing to stop while the image is downloaded or after
+	// a failed download, and the result of stopping a stopped container is not documented.
+	_, state, err := containerStateRefresh(s, d, m)()
 	if err != nil {
 		return diag.FromErr(err)
 	}
+	switch state {
+	case "running", "starting":
+	case "stopping":
+		return stopWait(ctx, s, d, m)
+	default:
+		return nil
+	}
 
+	err = containerCommand(crudStop, "/stop", s, d, m)
+	if err != nil {
+		return diag.FromErr(fmt.Errorf("error stopping container instance (%s): %s", d.Id(), err))
+	}
+
+	return stopWait(ctx, s, d, m)
+}
+
+func stopWait(ctx context.Context, s map[string]*schema.Schema, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	stopStateConf := &retry.StateChangeConf{
-		Pending: []string{"stopping"},
+		// Right after /container/stop the container can still be running.
+		Pending: []string{"running", "starting", "stopping"},
 		Target:  []string{"stopped"},
 		Refresh: containerStateRefresh(s, d, m),
 		Timeout: d.Timeout(schema.TimeoutDelete),
 	}
-	_, err = stopStateConf.WaitForStateContext(ctx)
+	_, err := stopStateConf.WaitForStateContext(ctx)
 	if err != nil {
 		err = fmt.Errorf("error waiting for container instance (%s) to be stopped: %s", d.Id(), err)
 		return diag.FromErr(err)
@@ -532,9 +563,29 @@ func stopContainer(ctx context.Context, s map[string]*schema.Schema, d *schema.R
 	return nil
 }
 
+// containerCommand sends /container/start or /container/stop for the container.
+func containerCommand(method crudMethod, command string, s map[string]*schema.Schema, d *schema.ResourceData, m interface{}) error {
+	var resUrl = &URL{
+		Path: s[MetaResourcePath].Default.(string),
+	}
+	if m.(Client).GetTransport() == TransportREST {
+		resUrl.Path += command
+	}
+
+	return m.(Client).SendRequest(method, resUrl, MikrotikItem{"numbers": d.Id()}, nil)
+}
+
 // containerState returns the container state. Older RouterOS returns it in the `status` field,
 // newer versions (7.24.1, upstream PR #1015) return boolean flags `stopped`, `running`, ... instead.
 func containerState(item MikrotikItem) string {
+	// RouterOS 7.24.6 REST names these flags with a slash: `downloading/extracting`
+	// (print: E - DOWNLOADING/EXTRACTING) and `download/extract failed`.
+	if containerFailed(item) {
+		return "failed"
+	}
+	if BoolFromMikrotikJSON(item["downloading/extracting"]) {
+		return "pulling"
+	}
 	if status, ok := item["status"]; ok && status != "" {
 		return status
 	}
@@ -582,4 +633,37 @@ func containerStateRefresh(s map[string]*schema.Schema, d *schema.ResourceData, 
 
 		return res, containerState((*res)[0]), nil
 	}
+}
+
+// containerFailed reports a failed image download or extraction: a true flag with "failed" in the name
+// (RouterOS 7.24.6: `download/extract failed`; the exact name is not in the documentation).
+func containerFailed(item MikrotikItem) bool {
+	for k, v := range item {
+		if strings.Contains(k, "failed") && BoolFromMikrotikJSON(v) {
+			return true
+		}
+	}
+	return false
+}
+
+// containerUpdate is ResourceUpdate without `remote-image` in the PATCH body:
+// remote_image forces a replacement, so it never changes here, and RouterOS 7.24.6 downloads the image
+// again when `remote-image` is set on an existing container.
+func containerUpdate(ctx context.Context, s map[string]*schema.Schema, d *schema.ResourceData, m interface{}) diag.Diagnostics {
+	item, metadata := TerraformResourceDataToMikrotik(s, d)
+	delete(item, "remote-image")
+
+	id, err := dynamicIdLookup(metadata.IdType, metadata.Path, m.(Client), d)
+	if err != nil {
+		ColorizedDebug(ctx, fmt.Sprintf(ErrorMsgPatch, err))
+		return diag.FromErr(err)
+	}
+
+	res, err := UpdateItem(&ItemId{Id, id}, metadata.Path, item, m.(Client))
+	if err != nil {
+		ColorizedDebug(ctx, fmt.Sprintf(ErrorMsgPatch, err))
+		return diag.FromErr(err)
+	}
+
+	return MikrotikResourceDataToTerraform(res, s, d)
 }
