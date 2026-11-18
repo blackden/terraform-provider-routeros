@@ -230,10 +230,19 @@ func ResourceContainer() *schema.Resource {
 			Description: "The status of the container",
 		},
 		"stop_signal": {
-			Type:        schema.TypeString,
-			Optional:    true,
-			Default:     "15-SIGTERM",
-			Description: "Signal to stop the container.",
+			Type:     schema.TypeString,
+			Optional: true,
+			Computed: true,
+			Description: "Signal to stop the container. The RouterOS 7.24 CLI reference uses the `15-SIGTERM` form, " +
+				"some older versions accept only the number (`15`, upstream issue #969); both forms are treated as equal.",
+			DiffSuppressFunc: func(k, old, new string, d *schema.ResourceData) bool {
+				if AlwaysPresentNotUserProvided(k, old, new, d) {
+					return true
+				}
+				// "15" == "15-SIGTERM"
+				num := func(v string) string { n, _, _ := strings.Cut(v, "-"); return n }
+				return old != "" && new != "" && num(old) == num(new)
+			},
 		},
 		"stop_time": {
 			Type:             schema.TypeString,
@@ -289,6 +298,7 @@ func ResourceContainer() *schema.Resource {
 		} else {
 			d.Set("running", item["status"] == "running")
 		}
+		d.Set("status", containerState(item))
 
 		tag, ok := d.Get("tag").(string)
 		if ok && tag != "" {
@@ -400,16 +410,7 @@ func startContainer(ctx context.Context, s map[string]*schema.Schema, d *schema.
 	stopStateConf := &retry.StateChangeConf{
 		Pending: []string{"pulling", "extracting"},
 		Target:  []string{"stopped"},
-		Refresh: func() (result interface{}, state string, err error) {
-			metadata := GetMetadata(s)
-
-			res, err := ReadItems(&ItemId{metadata.IdType, d.Id()}, metadata.Path, m.(Client))
-			if err != nil {
-				return res, (*res)[0]["status"], err
-			}
-
-			return res, (*res)[0]["status"], nil
-		},
+		Refresh: containerStateRefresh(s, d, m),
 		Timeout: d.Timeout(schema.TimeoutCreate),
 	}
 	_, err := stopStateConf.WaitForStateContext(ctx)
@@ -434,18 +435,9 @@ func startContainer(ctx context.Context, s map[string]*schema.Schema, d *schema.
 	}
 
 	startStateConf := &retry.StateChangeConf{
-		Pending: []string{"stopped"},
+		Pending: []string{"stopped", "starting"},
 		Target:  []string{"running"},
-		Refresh: func() (result interface{}, state string, err error) {
-			metadata := GetMetadata(s)
-
-			res, err := ReadItems(&ItemId{metadata.IdType, d.Id()}, metadata.Path, m.(Client))
-			if err != nil {
-				return res, (*res)[0]["status"], err
-			}
-
-			return res, (*res)[0]["status"], nil
-		},
+		Refresh: containerStateRefresh(s, d, m),
 		Timeout: d.Timeout(schema.TimeoutCreate),
 	}
 	_, err = startStateConf.WaitForStateContext(ctx)
@@ -475,16 +467,7 @@ func stopContainer(ctx context.Context, s map[string]*schema.Schema, d *schema.R
 	stopStateConf := &retry.StateChangeConf{
 		Pending: []string{"stopping"},
 		Target:  []string{"stopped"},
-		Refresh: func() (result interface{}, state string, err error) {
-			metadata := GetMetadata(s)
-
-			res, err := ReadItems(&ItemId{metadata.IdType, d.Id()}, metadata.Path, m.(Client))
-			if err != nil {
-				return res, (*res)[0]["status"], err
-			}
-
-			return res, (*res)[0]["status"], nil
-		},
+		Refresh: containerStateRefresh(s, d, m),
 		Timeout: d.Timeout(schema.TimeoutDelete),
 	}
 	_, err = stopStateConf.WaitForStateContext(ctx)
@@ -493,4 +476,39 @@ func stopContainer(ctx context.Context, s map[string]*schema.Schema, d *schema.R
 		return diag.FromErr(err)
 	}
 	return nil
+}
+
+// containerState returns the container state. Older RouterOS returns it in the `status` field,
+// newer versions (7.24.1, upstream PR #1015) return boolean flags `stopped`, `running`, ... instead.
+func containerState(item MikrotikItem) string {
+	if status, ok := item["status"]; ok && status != "" {
+		return status
+	}
+	// TODO: the flag names are taken from MetaSkipFields and the 7.24 print flags
+	// (S stopped, N starting, R running, T stopping, E extracting); verify the REST output on 7.23.
+	for _, state := range []string{"running", "starting", "stopping", "stopped", "extracting", "pulling", "downloading"} {
+		if BoolFromMikrotikJSON(item[state]) {
+			if state == "downloading" {
+				return "pulling"
+			}
+			return state
+		}
+	}
+	return ""
+}
+
+func containerStateRefresh(s map[string]*schema.Schema, d *schema.ResourceData, m interface{}) retry.StateRefreshFunc {
+	return func() (interface{}, string, error) {
+		metadata := GetMetadata(s)
+
+		res, err := ReadItems(&ItemId{metadata.IdType, d.Id()}, metadata.Path, m.(Client))
+		if err != nil {
+			return nil, "", err
+		}
+		if res == nil || len(*res) == 0 {
+			return nil, "", fmt.Errorf("container %s not found", d.Id())
+		}
+
+		return res, containerState((*res)[0]), nil
+	}
 }

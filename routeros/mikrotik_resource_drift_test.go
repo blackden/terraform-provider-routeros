@@ -53,3 +53,21 @@ func TestDriftAttributeSlice_Container(t *testing.T) {
 		}
 	}
 }
+
+func TestContainerState(t *testing.T) {
+	tests := []struct {
+		item MikrotikItem
+		want string
+	}{
+		{MikrotikItem{"status": "stopping"}, "stopping"},
+		{MikrotikItem{"running": "true"}, "running"},
+		{MikrotikItem{"running": "false", "stopped": "true"}, "stopped"},
+		{MikrotikItem{"extracting": "true"}, "extracting"},
+		{MikrotikItem{}, ""},
+	}
+	for _, tt := range tests {
+		if got := containerState(tt.item); got != tt.want {
+			t.Errorf("containerState(%v) = %q, want %q", tt.item, got, tt.want)
+		}
+	}
+}
