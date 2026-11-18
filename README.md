@@ -8,7 +8,7 @@
 > unit-tested on 7.23 and 7.24. See [FORK.md](FORK.md) for what is included, how to
 > migrate (`source = "blackden/routeros"`) and the version policy.
 
-![module testing workflow](https://github.com/GNewbury1/terraform-provider-routeros/actions/workflows/release.yml/badge.svg?branch=main)
+![module testing workflow](https://github.com/blackden/terraform-provider-routeros/actions/workflows/test.yml/badge.svg)
 
 **Note**: In release 1.43, the resource schemas have been changed:
 * `routeros_routing_bgp_connection`
