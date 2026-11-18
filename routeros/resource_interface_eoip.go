@@ -31,7 +31,7 @@ func ResourceInterfaceEoip() *schema.Resource {
 		KeyMacAddress:              PropMacAddressRo,
 		KeyMtu:                     PropMtuRw(),
 		KeyName:                    PropNameForceNewRw,
-		KeyRemoteAddress:           PropRemoteAddressRw,
+		KeyRemoteAddress:           PropRemoteAddressHostRw,
 		KeyRunning:                 PropRunningRo,
 		"tunnel_id": {
 			Type:        schema.TypeInt,
@@ -39,6 +39,9 @@ func ResourceInterfaceEoip() *schema.Resource {
 			Default:     0,
 			Description: "Unique tunnel identifier, which must match the other side of the tunnel.",
 		},
+
+		// RouterOS 7.2x, resolved remote-address (DNS name in remote_address).
+		"current_remote_address": PropCurrentRemoteAddressRo,
 	}
 
 	return &schema.Resource{

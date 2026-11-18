@@ -24,8 +24,11 @@ func ResourceInterfaceIPIP() *schema.Resource {
 		KeyLocalAddress:  PropLocalAddressRw,
 		KeyMtu:           PropMtuRw(),
 		KeyName:          PropName("Name of the ipip interface."),
-		KeyRemoteAddress: PropRemoteAddressRw,
+		KeyRemoteAddress: PropRemoteAddressHostRw,
 		KeyRunning:       PropRunningRo,
+
+		// RouterOS 7.2x, resolved remote-address (DNS name in remote_address).
+		"current_remote_address": PropCurrentRemoteAddressRo,
 	}
 
 	return &schema.Resource{

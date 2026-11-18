@@ -24,8 +24,11 @@ func ResourceInterfaceGre() *schema.Resource {
 		KeyLocalAddress:  PropLocalAddressRw,
 		KeyMtu:           PropMtuRw(),
 		KeyName:          PropNameForceNewRw,
-		KeyRemoteAddress: PropRemoteAddressRw,
+		KeyRemoteAddress: PropRemoteAddressHostRw,
 		KeyRunning:       PropRunningRo,
+
+		// RouterOS 7.2x, resolved remote-address (DNS name in remote_address).
+		"current_remote_address": PropCurrentRemoteAddressRo,
 	}
 
 	return &schema.Resource{

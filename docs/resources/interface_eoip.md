@@ -42,12 +42,13 @@ resource "routeros_interface_eoip" "eoip_tunnel1" {
 - `loop_protect_disable_time` (String)
 - `loop_protect_send_interval` (String)
 - `mtu` (String) Layer3 Maximum transmission unit ('auto', 0 .. 65535). Look for the exact minimum value in the MikroTik documentation
-- `remote_address` (String) IP address of the remote end of the tunnel.
+- `remote_address` (String) Address of the remote end of the tunnel: an IP address or a DNS name (RouterOS resolves the name itself, the resolved address is in `current_remote_address`).
 - `tunnel_id` (Number) Unique tunnel identifier, which must match the other side of the tunnel.
 
 ### Read-Only
 
 - `actual_mtu` (Number)
+- `current_remote_address` (String) Address the tunnel currently sends to (`remote_address` resolved by RouterOS).
 - `id` (String) The ID of this resource.
 - `l2mtu` (Number) Layer2 Maximum transmission unit. [See](https://wiki.mikrotik.com/wiki/Maximum_Transmission_Unit_on_RouterBoards).
 - `loop_protect_status` (String)
