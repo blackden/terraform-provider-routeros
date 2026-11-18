@@ -73,6 +73,9 @@ func ResourceIpService() *schema.Resource {
 		MetaResourcePath: PropResourcePath("/ip/service"),
 		MetaId:           PropId(Id),
 
+		// TODO: the RouterOS 7.25 CLI reference marks `address` deprecated in favour of
+		// `available-from` (a value set with address is written to available-from). 7.23 still prints
+		// `address`; add a drift entry once the version of the rename is known.
 		"address": {
 			Type:        schema.TypeString,
 			Optional:    true,
@@ -89,7 +92,8 @@ func ResourceIpService() *schema.Resource {
 			Type:     schema.TypeString,
 			Optional: true,
 			Description: "The name of the certificate used by a particular service. Applicable only for services " +
-				"that depend on certificates ( www-ssl, api-ssl ).",
+				"that depend on certificates ( www-ssl, api-ssl, reverse-proxy ). For reverse-proxy the certificate " +
+				"is used by the /ip/reverse-proxy rules that have none of their own.",
 			DiffSuppressFunc: AlwaysPresentNotUserProvided,
 		},
 		KeyDisabled: PropDisabledRw,
@@ -110,10 +114,10 @@ func ResourceIpService() *schema.Resource {
 		"numbers": {
 			Type:     schema.TypeString,
 			Required: true,
-			Description: "The name of the service whose settings will be changed ( api, api-ssl, ftp, ssh, telnet, " +
-				"winbox, www, www-ssl ).",
-			ValidateDiagFunc: ValidationMultiValInSlice([]string{"api", "api-ssl", "ftp", "ssh", "telnet", "winbox",
-				"www", "www-ssl"}, false, false),
+			Description: "The name of the service whose settings will be changed ( api, api-ssl, ftp, reverse-proxy, " +
+				"ssh, telnet, winbox, www, www-ssl ).",
+			ValidateDiagFunc: ValidationMultiValInSlice([]string{"api", "api-ssl", "ftp", "reverse-proxy", "ssh",
+				"telnet", "winbox", "www", "www-ssl"}, false, false),
 		},
 		"port": {
 			Type:         schema.TypeInt,
@@ -165,7 +169,7 @@ func ResourceIpService() *schema.Resource {
 
 	return &schema.Resource{
 		CreateContext: resCreateUpdate,
-		ReadContext:   func(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
+		ReadContext: func(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 			return resourceIpServiceRead(ctx, resSchema, d, m)
 		},
 		UpdateContext: resCreateUpdate,
@@ -182,6 +186,16 @@ func ResourceIpService() *schema.Resource {
 // resourceIpServiceRead Read filtered to the static (non-dynamic) row only,
 // keyed by the resource's `.id` set during create/import.
 func resourceIpServiceRead(ctx context.Context, s map[string]*schema.Schema, d *schema.ResourceData, m interface{}) diag.Diagnostics {
+	// State written by provider versions before PR #983 keeps the service name ("ssh") as the id.
+	// Resolve it to the `.id` handle instead of dropping the resource from the state.
+	if id := d.Id(); id != "" && id[0] != '*' {
+		resolved, err := resolveIpServiceId(id, m.(Client))
+		if err != nil {
+			return diag.FromErr(err)
+		}
+		d.SetId(resolved)
+	}
+
 	res, err := ReadItemsFiltered(
 		[]string{".id=" + d.Id(), "dynamic=false"},
 		"/ip/service", m.(Client),
