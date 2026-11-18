@@ -268,3 +268,10 @@ func testCheckResourceExists(name string, resourcePath string, resource *Mikroti
 		return nil
 	}
 }
+
+// Schema sanity check of all resources and data sources without a router.
+func TestProvider_InternalValidate(t *testing.T) {
+	if err := Provider().InternalValidate(); err != nil {
+		t.Fatal(err)
+	}
+}

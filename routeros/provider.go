@@ -146,6 +146,7 @@ func Provider() *schema.Provider {
 			"routeros_ip_nat_pmp_interfaces":           ResourceNatPmpInterfaces(),
 			"routeros_ip_neighbor_discovery_settings":  ResourceIpNeighborDiscoverySettings(),
 			"routeros_ip_pool":                         ResourceIPPool(),
+			"routeros_ip_reverse_proxy":                ResourceIpReverseProxy(),
 			"routeros_ip_route":                        ResourceIPRoute(),
 			"routeros_ip_service":                      ResourceIpService(),
 			"routeros_ip_settings":                     ResourceIpSettings(),
