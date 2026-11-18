@@ -1,10 +1,6 @@
 version: 2
 # Visit https://goreleaser.com for documentation on how to customize this
 # behavior.
-before:
-  hooks:
-    # this is just an example and not a requirement for provider building/publishing
-    - go mod tidy
 builds:
   - env:
       # goreleaser does not work with CGO, it could also complicate
@@ -31,11 +27,15 @@ builds:
         goarch: "386"
     binary: "{{ .ProjectName }}_v{{ .Version }}"
 archives:
-  - format: zip
+  - formats: [zip]
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
 checksum:
   name_template: "{{ .ProjectName }}_{{ .Version }}_SHA256SUMS"
   algorithm: sha256
+  # The registry manifest must be covered by the signed SHA256SUMS.
+  extra_files:
+    - glob: ./terraform-registry-manifest.json
+      name_template: "{{ .ProjectName }}_{{ .Version }}_manifest.json"
 signs:
   - artifacts: checksum
     args:
@@ -50,3 +50,8 @@ signs:
       - "${artifact}"
 release:
   prerelease: auto
+  # The first release is published by hand after checking the assets.
+  draft: true
+  extra_files:
+    - glob: ./terraform-registry-manifest.json
+      name_template: "{{ .ProjectName }}_{{ .Version }}_manifest.json"
