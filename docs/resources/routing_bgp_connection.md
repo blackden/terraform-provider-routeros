@@ -93,7 +93,7 @@ Optional:
 
 - `address` (String) Local connection IPv4/6 address.
 - `port` (Number) Local connection port.
-- `ttl` (Number) Time To Live (hop limit) that will be recorded in sent TCP packets.
+- `ttl` (Number) Time To Live (hop limit) that will be recorded in sent TCP packets. `0` (what `-generate-config-out` writes for an unset value) means not set and is not sent to RouterOS, unless a set value is changed to it (RouterOS rejects that).
 
 Read-Only:
 
@@ -108,7 +108,7 @@ Optional:
 - `add_path` (String) Advertised additional paths grouped by address family. Available in RouterOS starting from version 7.22.
 - `affinity` (String) Configure output multicore processing. Read more in Routing Protocol Multi-core Support article. alone - input and output of each session is processed in its own process, the most likely best option when there are a lot of cores and a lot of peers afi, instance, vrf, remote-as - try to run input/output of new session in process with similar parameters main - run input/output in the main process (could potentially increase performance on single-core even possibly on multicore devices with small amount of cores) input - run output in the same process as input (can be set only for output affinity).
 - `as_override` (Boolean) If set, then all instances of the remote peer's AS number in the BGP AS-PATH attribute are replaced with the local AS number before sending a route update to that peer. Happens before routing filters and prepending.
-- `default_originate` (String) Specifies default route (0.0.0.0/0) distribution method.
+- `default_originate` (String) Specifies default route (0.0.0.0/0) distribution method. `""` (what `-generate-config-out` writes for an unset value) means not set and is not sent to RouterOS, unless a set value is changed to it (RouterOS rejects that).
 - `default_prepend` (Number) The count of AS prepended to the AS path.
 - `filter_chain` (String) Name of the routing filter chain to be used on the output prefixes. If the chain is not specified, then BGP by default accepts everything.
 - `filter_select` (String) Name of the routing select chain to be used for prefix selection. If not specified, then default selection is used.
@@ -129,7 +129,7 @@ Optional:
 - `allowed_as` (String) List of remote AS numbers that are allowed to connect. Useful for dynamic peer configuration.
 - `as` (String) Remote AS number. If not specified BGP will determine remote AS automatically from the OPEN message.
 - `port` (Number) Local connection port.
-- `ttl` (Number) Acceptable minimum Time To Live, the hop limit for this TCP connection. For example, if 'ttl=255' then only single-hop neighbors will be able to establish the connection. This property only affects EBGP peers.
+- `ttl` (Number) Acceptable minimum Time To Live, the hop limit for this TCP connection. For example, if 'ttl=255' then only single-hop neighbors will be able to establish the connection. This property only affects EBGP peers. `0` (what `-generate-config-out` writes for an unset value) means not set and is not sent to RouterOS, unless a set value is changed to it (RouterOS rejects that).
 
 ## Import
 Import is supported using the following syntax:

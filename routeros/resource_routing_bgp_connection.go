@@ -63,6 +63,28 @@ import (
   }
 */
 
+// bgpConnectionUnsetFields: what RouterOS 7.24 leaves out of the response.
+// Defaults are the schema Defaults below.
+var bgpConnectionUnsetFields = []forkPayloadField{
+	{Attr: "add_path_out", Default: "none"},
+	{Attr: "address_families", Default: "ip"},
+	{Attr: "connect", Default: "true"},
+	{Attr: "keepalive_time", Default: "3m"},
+	{Attr: "listen", Default: "true"},
+	{Attr: "nexthop_choice", Default: "default"},
+	{Attr: "local.0.port", Default: "179"},
+	{Attr: "remote.0.port", Default: "179"},
+	{Attr: "local.0.ttl"},
+	{Attr: "remote.0.ttl"},
+	{Attr: "output.0.default_originate"},
+	{Attr: "output.0.redistribute"},
+	// RouterOS 7.24 rejects affinity=""; limit-process-routes=0 is stored as a limit.
+	{Attr: "input.0.affinity"},
+	{Attr: "output.0.affinity"},
+	{Attr: "input.0.limit_process_routes_ipv4"},
+	{Attr: "input.0.limit_process_routes_ipv6"},
+}
+
 // https://help.mikrotik.com/docs/display/ROS/BGP#BGP-ConnectionMenu
 // https://help.mikrotik.com/docs/spaces/ROS/pages/331612228/routing+bgp
 func ResourceRoutingBgpConnection() *schema.Resource {
@@ -73,11 +95,12 @@ func ResourceRoutingBgpConnection() *schema.Resource {
 		MetaSetUnsetFields: PropSetUnsetFields("hold_time", "keepalive_time"),
 
 		"add_path_out": {
-			Type:         schema.TypeString,
-			Optional:     true,
-			Description:  "",
-			Default:      "none",
-			ValidateFunc: validation.StringInSlice([]string{"all", "none"}, false),
+			Type:             schema.TypeString,
+			Optional:         true,
+			Description:      "",
+			Default:          "none",
+			ValidateFunc:     validation.StringInSlice([]string{"all", "none"}, false),
+			DiffSuppressFunc: DiffSuppressAbsentDefault("none"),
 		},
 		"address_families": {
 			Type:     schema.TypeString,
@@ -87,6 +110,7 @@ func ResourceRoutingBgpConnection() *schema.Resource {
 				"remote peer must support (they usually do) BGP capabilities optional parameter to " +
 				"negotiate any other families than IP.",
 			ValidateDiagFunc: ValidationMultiValInSlice([]string{"ip", "ipv6", "l2vpn", "l2vpn-cisco", "vpnv4"}, false, false),
+			DiffSuppressFunc: DiffSuppressAbsentDefault("ip"),
 		},
 		"as": {
 			Type:     schema.TypeString,
@@ -116,10 +140,11 @@ func ResourceRoutingBgpConnection() *schema.Resource {
 		KeyComment:  PropCommentRw,
 		KeyDisabled: PropDisabledRw,
 		"connect": {
-			Type:        schema.TypeBool,
-			Optional:    true,
-			Default:     true,
-			Description: "Whether to allow the router to initiate the connection.",
+			Type:             schema.TypeBool,
+			Optional:         true,
+			Default:          true,
+			Description:      "Whether to allow the router to initiate the connection.",
+			DiffSuppressFunc: DiffSuppressAbsentDefault("true"),
 		},
 		"hold_time": {
 			Type:     schema.TypeString,
@@ -313,17 +338,20 @@ func ResourceRoutingBgpConnection() *schema.Resource {
 			DiffSuppressFunc: AlwaysPresentNotUserProvided,
 		},
 		"keepalive_time": {
-			Type:             schema.TypeString,
-			Optional:         true,
-			Default:          "3m",
-			Description:      "How long to keep the BGP session open after the last received 'keepalive' message.",
-			DiffSuppressFunc: TimeEqual,
+			Type:        schema.TypeString,
+			Optional:    true,
+			Default:     "3m",
+			Description: "How long to keep the BGP session open after the last received 'keepalive' message.",
+			DiffSuppressFunc: func(k, old, new string, d *schema.ResourceData) bool {
+				return DiffSuppressAbsentDefault("3m")(k, old, new, d) || TimeEqual(k, old, new, d)
+			},
 		},
 		"listen": {
-			Type:        schema.TypeBool,
-			Optional:    true,
-			Default:     true,
-			Description: "Whether to listen for incoming connections.",
+			Type:             schema.TypeBool,
+			Optional:         true,
+			Default:          true,
+			Description:      "Whether to listen for incoming connections.",
+			DiffSuppressFunc: DiffSuppressAbsentDefault("true"),
 		},
 		"local": {
 			Type:        schema.TypeList,
@@ -343,11 +371,12 @@ func ResourceRoutingBgpConnection() *schema.Resource {
 						Description: "",
 					},
 					"port": {
-						Type:         schema.TypeInt,
-						Optional:     true,
-						Default:      179,
-						Description:  "Local connection port.",
-						ValidateFunc: Validation64k,
+						Type:             schema.TypeInt,
+						Optional:         true,
+						Default:          179,
+						Description:      "Local connection port.",
+						ValidateFunc:     Validation64k,
+						DiffSuppressFunc: DiffSuppressAbsentDefault("179"),
 					},
 					"role": {
 						Type:     schema.TypeString,
@@ -371,10 +400,13 @@ func ResourceRoutingBgpConnection() *schema.Resource {
 						),
 					},
 					"ttl": {
-						Type:         schema.TypeInt,
-						Optional:     true,
-						Description:  "Time To Live (hop limit) that will be recorded in sent TCP packets.",
-						ValidateFunc: validation.IntBetween(1, 255),
+						Type:     schema.TypeInt,
+						Optional: true,
+						Description: "Time To Live (hop limit) that will be recorded in sent TCP packets. `0` (what " +
+							"`-generate-config-out` writes for an unset value) means not set and is not sent to RouterOS, unless a set value is changed to it (RouterOS rejects that).",
+						// 0: unset value of an imported connection.
+						ValidateFunc:     validation.Any(validation.IntBetween(1, 255), validation.IntInSlice([]int{0})),
+						DiffSuppressFunc: DiffSuppressUnsetZero,
 					},
 				},
 			},
@@ -403,7 +435,8 @@ func ResourceRoutingBgpConnection() *schema.Resource {
 				"the peer as the next-hop; propagate - try to propagate further the next-hop received; " +
 				"i.e. if the route has BGP NEXT_HOP attribute, then use it as the next-hop, otherwise, " +
 				"fall back to the default case.",
-			ValidateFunc: validation.StringInSlice([]string{"default", "force-self", "propagate"}, false),
+			ValidateFunc:     validation.StringInSlice([]string{"default", "force-self", "propagate"}, false),
+			DiffSuppressFunc: DiffSuppressAbsentDefault("default"),
 		},
 		"output": {
 			Type:        schema.TypeList,
@@ -440,10 +473,13 @@ func ResourceRoutingBgpConnection() *schema.Resource {
 						Description: "Advertised additional paths grouped by address family. Available in RouterOS starting from version 7.22.",
 					},
 					"default_originate": {
-						Type:         schema.TypeString,
-						Optional:     true,
-						Description:  "Specifies default route (0.0.0.0/0) distribution method.",
-						ValidateFunc: validation.StringInSlice([]string{"always", "if-installed", "never"}, false),
+						Type:     schema.TypeString,
+						Optional: true,
+						Description: "Specifies default route (0.0.0.0/0) distribution method. `\"\"` (what " +
+							"`-generate-config-out` writes for an unset value) means not set and is not sent to RouterOS, unless a set value is changed to it (RouterOS rejects that).",
+						// "": unset value of an imported connection.
+						ValidateFunc:     validation.StringInSlice([]string{"", "always", "if-installed", "never"}, false),
+						DiffSuppressFunc: DiffSuppressUnsetZero,
 					},
 					"default_prepend": {
 						Type:         schema.TypeInt,
@@ -495,9 +531,10 @@ func ResourceRoutingBgpConnection() *schema.Resource {
 						Type:        schema.TypeString,
 						Optional:    true,
 						Description: "Enable redistribution of specified route types.",
-						ValidateDiagFunc: ValidationMultiValInSlice([]string{
+						// "": unset value of an imported connection.
+						ValidateDiagFunc: ValidationEmptyOr(ValidationMultiValInSlice([]string{
 							"bgp", "connected", "bgp-mpls-vpn", "dhcp", "fantasy", "modem", "ospf", "rip", "static", "vpn",
-						}, false, false),
+						}, false, false)),
 					},
 					"remove_private_as": {
 						Type:     schema.TypeBool,
@@ -535,19 +572,23 @@ func ResourceRoutingBgpConnection() *schema.Resource {
 							"from the OPEN message.",
 					},
 					"port": {
-						Type:         schema.TypeInt,
-						Optional:     true,
-						Description:  "Local connection port.",
-						Default:      179,
-						ValidateFunc: Validation64k,
+						Type:             schema.TypeInt,
+						Optional:         true,
+						Description:      "Local connection port.",
+						Default:          179,
+						ValidateFunc:     Validation64k,
+						DiffSuppressFunc: DiffSuppressAbsentDefault("179"),
 					},
 					"ttl": {
 						Type:     schema.TypeInt,
 						Optional: true,
 						Description: "Acceptable minimum Time To Live, the hop limit for this TCP connection. For " +
 							"example, if 'ttl=255' then only single-hop neighbors will be able to establish the " +
-							"connection. This property only affects EBGP peers.",
-						ValidateFunc: validation.IntBetween(1, 255),
+							"connection. This property only affects EBGP peers. `0` (what `-generate-config-out` writes " +
+							"for an unset value) means not set and is not sent to RouterOS, unless a set value is changed to it (RouterOS rejects that).",
+						// 0: unset value of an imported connection.
+						ValidateFunc:     validation.Any(validation.IntBetween(1, 255), validation.IntInSlice([]int{0})),
+						DiffSuppressFunc: DiffSuppressUnsetZero,
 					},
 				},
 			},
@@ -601,9 +642,10 @@ func ResourceRoutingBgpConnection() *schema.Resource {
 		Description: "> [!WARNING] Using this resource you may happen unexpected behavior, for example, some of the attributes " +
 			"may not be removable after adding them to the TF configuration. Please report this to GitHub and it " +
 			"may be possible to fix it. Use the resource at your own risk as it is!",
-		CreateContext: DefaultCreate(resSchema),
+		// Fields RouterOS leaves out are not sent back as zero values.
+		CreateContext: ForkCreateDropUnset(resSchema, bgpConnectionUnsetFields),
 		ReadContext:   DefaultRead(resSchema),
-		UpdateContext: DefaultUpdate(resSchema),
+		UpdateContext: ForkUpdateDropUnset(resSchema, bgpConnectionUnsetFields),
 		DeleteContext: DefaultDelete(resSchema),
 
 		Importer: &schema.ResourceImporter{
