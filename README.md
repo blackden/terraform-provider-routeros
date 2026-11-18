@@ -1,5 +1,13 @@
 # Terraform Provider RouterOS
 
+> **About this fork.** This is `blackden/routeros`, a fork of
+> [terraform-routeros/terraform-provider-routeros](https://github.com/terraform-routeros/terraform-provider-routeros).
+> It adds fixes and resources for RouterOS 7.21 to 7.24 (the current long-term branch), including several
+> open upstream pull requests, and is published so they can be used until they
+> land upstream; the changes are offered upstream. Supported: RouterOS 7 (REST),
+> unit-tested on 7.23 and 7.24. See [FORK.md](FORK.md) for what is included, how to
+> migrate (`source = "blackden/routeros"`) and the version policy.
+
 ![module testing workflow](https://github.com/GNewbury1/terraform-provider-routeros/actions/workflows/release.yml/badge.svg?branch=main)
 
 **Note**: In release 1.43, the resource schemas have been changed:
@@ -18,6 +26,8 @@ From version 1.0.0, the provider has been rewritten by [vaerh](https://github.co
 
 _We are not affiliated in any way with Mikrotik or the development of RouterOS_
 ## Using the provider
+
+Fork users: use `source = "blackden/routeros"` - see [FORK.md](FORK.md).
 
 To get started with the provider, you first need to enable the REST API on your router. [You can follow the Mikrotik documentation on this](https://help.mikrotik.com/docs/display/ROS/REST+API), but the gist is to create an SSL cert (in `/system/certificates`) and enable the `web-ssl` service (in `/ip/services`) which uses that certificate. After that, include the following in your Terraform manifests:
 

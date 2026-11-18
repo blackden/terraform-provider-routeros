@@ -1,8 +1,36 @@
-## [1.100.0](https://github.com/terraform-routeros/terraform-provider-routeros/compare/v1.99.1...v1.100.0) (2026-03-13)
+## [1.100.0](https://github.com/blackden/terraform-provider-routeros/compare/v1.99.1...v1.100.0) (2026-11-18)
+
+First release of the `blackden/routeros` fork, see [FORK.md](FORK.md). Based on upstream `main` (0d8c069).
+
+### Merged upstream pull requests
+
+* **container:** RouterOS 7.21 mounts and attributes ([#910](https://github.com/terraform-routeros/terraform-provider-routeros/pull/910), Oliver Ford)
+* **ip-service:** handle dynamic per-connection rows in RouterOS 7.20+ ([#983](https://github.com/terraform-routeros/terraform-provider-routeros/pull/983), Sol Astrius)
+* RouterOS 7.22 schema support, MLAG through bridge attributes ([#992](https://github.com/terraform-routeros/terraform-provider-routeros/pull/992), Levi Zitting)
+* **container:** read running state from the `running` field ([#1015](https://github.com/terraform-routeros/terraform-provider-routeros/pull/1015), Egor Zaitsev)
+* Fields not found in the schema, RouterOS 7.24.1 ([#1009](https://github.com/terraform-routeros/terraform-provider-routeros/pull/1009), Aaron Morgan)
 
 ### Features
 
-* **routing-id:** Add new resource `routeros_routing_id`
+* **routing-id:** Add new resource `routeros_routing_id` (from upstream main, not released upstream)
+* Add resources `routeros_ip_reverse_proxy`, `routeros_ip_proxy`, `routeros_ip_service_webserver`, `routeros_ip_firewall_service_port`, `routeros_ovpn_server_instance`, `routeros_system_package_update`, `routeros_system_certificate_settings` and `routeros_tool_romon`
+* **container:** RouterOS 7.21+ parameter names with drift for older versions, 7.24 fields, `memory_high` and `memory_max` in `routeros_container_config`
+* **wireguard-peer:** add `client_allowed_address`
+* **ovpn-client:** `tls_auth` and `tls_crypt` (read-only), `disconnect_notify`
+* **gre, ipip, eoip:** `remote_address` accepts a DNS name, add `current_remote_address`
+* **ip-service:** `reverse-proxy` service, import fills `numbers`
+
+### Bug Fixes
+
+* **container:** state from flags, start/stop by `numbers`, no replacement on `remote_image` change, `stop_signal` without default
+* **ppp-profile:** `use_encryption`, `use_ipv6` and `use_mpls` accept `required`
+* **ip-firewall-mangle:** no default for `address_list_timeout` and `log`
+* **ip-proxy:** cache size attributes are compared by size
+* **ovpn-client, container-config:** masked password produces no diff and is not sent on update
+* **serialize:** for every `Sensitive` string attribute a masked value is sent only when the configuration holds it; removing a nested block no longer panics
+* **routing-bgp-connection:** import and update only changed fields
+* **ip-service:** migrate state with legacy name-based ids
+* **interface-veth, routing-rule:** `dhcp_address` read-only, no diff for unset `vrf` and `realm`
 
 ## [1.99.1](https://github.com/terraform-routeros/terraform-provider-routeros/compare/v1.99.0...v1.99.1) (2026-03-08)
 
