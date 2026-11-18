@@ -19,7 +19,7 @@ resource "routeros_container_config" "config" {
 - `layer_dir` (String) Container layers directory.
 - `memory_high` (String) RAM usage limit for all containers. RouterOS before 7.20 calls the parameter `ram-high`, the provider maps the attribute to it. The attribute was named `ram_high` in the upstream provider.
 - `memory_max` (String) Max RAM usage limit for all containers (RouterOS 7.20+).
-- `password` (String, Sensitive) Specifies the password for authentication (starting from ROS 7.8)
+- `password` (String, Sensitive) Specifies the password for authentication (starting from ROS 7.8). If absent or empty, the password is not managed: the router keeps its value and it cannot be cleared through the configuration.
 - `registry_url` (String) External registry url from where the container will be downloaded.
 - `swap_max` (String) Max swap usage limit for all containers (RouterOS 7.24: `unlimited` or a size, container swap limits).
 - `tmpdir` (String) Container extraction directory.

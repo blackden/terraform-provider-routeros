@@ -24,7 +24,7 @@
 - `mac_address` (String) Mac address of OVPN interface. Will be automatically generated if not specified.
 - `max_mtu` (Number) Maximum Transmission Unit. Max packet size that the OVPN interface will be able to send without packet fragmentation.
 - `mode` (String) Layer3 or layer2 tunnel mode (alternatively tun, tap)
-- `password` (String, Sensitive) Password used for authentication.
+- `password` (String, Sensitive) Password used for authentication. If absent or empty, the password is not managed: the router keeps its value and it cannot be cleared through the configuration.
 - `port` (Number) Port to connect to.
 - `profile` (String) Specifies which PPP profile configuration will be used when establishing the tunnel.
 - `protocol` (String) Indicates the protocol to use when connecting with the remote endpoint.

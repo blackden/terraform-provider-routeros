@@ -22,10 +22,11 @@ func ResourceContainerConfig() *schema.Resource {
 			Description: "Specifies the username for authentication (starting from ROS 7.8)",
 		},
 		"password": {
-			Type:        schema.TypeString,
-			Sensitive:   true,
-			Optional:    true,
-			Description: "Specifies the password for authentication (starting from ROS 7.8)",
+			Type:             schema.TypeString,
+			Sensitive:        true,
+			DiffSuppressFunc: MaskedSecretNotInConfig,
+			Optional:         true,
+			Description:      "Specifies the password for authentication (starting from ROS 7.8). If absent or empty, the password is not managed: the router keeps its value and it cannot be cleared through the configuration.",
 		},
 		"memory_high": {
 			Type:     schema.TypeString,

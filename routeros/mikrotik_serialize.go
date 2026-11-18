@@ -215,6 +215,11 @@ func TerraformResourceDataToMikrotik(s map[string]*schema.Schema, d *schema.Reso
 
 		switch terraformMetadata.Type {
 		case schema.TypeString:
+			// RouterOS returns write-only secrets masked ("*****"). The mask in the state is
+			// not a password: never send it back when the secret is not set in the configuration.
+			if terraformMetadata.Sensitive && isMaskedSecret(value.(string)) && rawConfig.GetAttr(terraformSnakeName).IsNull() {
+				continue
+			}
 			if _, ok := setUnsetFields[terraformSnakeName]; ok && value.(string) == "" {
 				// Unset
 				item["!"+mikrotikKebabName] = ""

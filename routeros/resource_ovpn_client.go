@@ -110,10 +110,11 @@ func ResourceOpenVPNClient() *schema.Resource {
 		},
 		KeyName: PropName("Descriptive name of the interface."),
 		"password": {
-			Type:        schema.TypeString,
-			Optional:    true,
-			Description: "Password used for authentication.",
-			Sensitive:   true,
+			Type:             schema.TypeString,
+			Optional:         true,
+			Description:      "Password used for authentication. If absent or empty, the password is not managed: the router keeps its value and it cannot be cleared through the configuration.",
+			Sensitive:        true,
+			DiffSuppressFunc: MaskedSecretNotInConfig,
 		},
 		"port": {
 			Type:             schema.TypeInt,
