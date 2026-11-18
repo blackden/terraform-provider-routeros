@@ -210,7 +210,15 @@ func resourceIpServiceRead(ctx context.Context, s map[string]*schema.Schema, d *
 	if id, ok := (*res)[0][".id"]; ok {
 		d.SetId(id)
 	}
-	return MikrotikResourceDataToTerraform((*res)[0], s, d)
+	diags := MikrotikResourceDataToTerraform((*res)[0], s, d)
+	// `numbers` is the service name, RouterOS returns it as `name`. Without this an
+	// imported service has no `numbers` in the state and every plan shows `+ numbers = "ssh"`.
+	if name, ok := (*res)[0]["name"]; ok && name != "" {
+		if err := d.Set("numbers", name); err != nil {
+			diags = append(diags, diag.FromErr(err)...)
+		}
+	}
+	return diags
 }
 
 // importIpServiceState accepts either a `*N` handle (passes through) or a
