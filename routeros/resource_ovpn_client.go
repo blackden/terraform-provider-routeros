@@ -36,7 +36,10 @@ import (
 
   tls-auth/tls-crypt are read-only flags (print: Ta - TLS-AUTH, Tc - TLS-CRYPT; RouterOS 7.23 and 7.24):
   the key comes from `import-ovpn-configuration`, `set` has no such arguments. disconnect-notify is
-  an argument of `set` (yes/no) on the same versions.
+  an argument of `set` (yes/no) on the same versions. With protocol=tcp RouterOS 7.24.6 accepts
+  disconnect-notify in add/set but does not return it in print/get.
+  import-ovpn-configuration takes the <tls-crypt> block only with `key-direction` in the file
+  (7.24.6); without it the import succeeds and tls-crypt stays unset.
 */
 
 // https://help.mikrotik.com/docs/display/ROS/OpenVPN
@@ -83,9 +86,10 @@ func ResourceOpenVPNClient() *schema.Resource {
 		},
 		KeyDisabled: PropDisabledRw,
 		"disconnect_notify": {
-			Type:             schema.TypeBool,
-			Optional:         true,
-			Description:      "Send the server a notification when the client disconnects.",
+			Type:     schema.TypeBool,
+			Optional: true,
+			Description: "Send the server a notification when the client disconnects. Only with `protocol = udp`: " +
+				"with `tcp` RouterOS accepts the value but does not return it.",
 			DiffSuppressFunc: AlwaysPresentNotUserProvided,
 		},
 		"hw_crypto": {
