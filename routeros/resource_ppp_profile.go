@@ -247,9 +247,9 @@ func ResourcePPPProfile() *schema.Resource {
 			Default:  "default",
 			Description: "Specifies whether to use data encryption or not. yes - enable data encryption no - " +
 				"disable data encryption default - derive this value from the interface default profile; " +
-				"same as no if this is the interface default profile require - explicitly requires " +
-				"encryption This setting does not work on OVPN and SSTP tunnels.",
-			ValidateFunc: validation.StringInSlice([]string{"yes", "no", "default", "require"}, false),
+				"same as no if this is the interface default profile required - explicitly requires " +
+				"encryption (RouterOS 7 calls it `required`, `require` is kept for older configurations) This setting does not work on OVPN and SSTP tunnels.",
+			ValidateFunc: validation.StringInSlice([]string{"yes", "no", "default", "require", "required"}, false),
 		},
 		"use_ipv6": {
 			Type:     schema.TypeString,
@@ -259,7 +259,7 @@ func ResourcePPPProfile() *schema.Resource {
 				"- enable IPv6 support no - disable IPv6 support default - derive this value from the " +
 				"interface default profile; same as no if this is the interface default profile require - " +
 				"explicitly requires IPv6 support.",
-			ValidateFunc: validation.StringInSlice([]string{"yes", "no", "default", "require"}, false),
+			ValidateFunc: validation.StringInSlice([]string{"yes", "no", "default", "require", "required"}, false),
 		},
 		"use_mpls": {
 			Type:     schema.TypeString,
@@ -268,7 +268,7 @@ func ResourcePPPProfile() *schema.Resource {
 			Description: "Specifies whether to allow MPLS over PPP. yes - enable MPLS support no - disable MPLS " +
 				"support default - derive this value from the interface default profile; same as no if " +
 				"this is the interface default profile require - explicitly requires MPLS support",
-			ValidateFunc: validation.StringInSlice([]string{"yes", "no", "default", "require"}, false),
+			ValidateFunc: validation.StringInSlice([]string{"yes", "no", "default", "require", "required"}, false),
 		},
 		"use_upnp": {
 			Type:         schema.TypeString,
