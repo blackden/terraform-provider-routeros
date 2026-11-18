@@ -14,6 +14,7 @@ import (
     "cipher": "blowfish128",
   * "connect-to": "192.168.1.1",
     "disabled": "false",
+    "disconnect-notify": "yes",
     "hw-crypto": "false",
     "mac-address": "02:E7:60:C6:40:EE",
     "max-mtu": "1500",
@@ -25,11 +26,17 @@ import (
     "protocol": "tcp",
     "route-nopull": "false",
     "running": "false",
+    "tls-auth": "false",
+    "tls-crypt": "true",
     "tls-version": "any",
     "use-peer-dns": "yes",
   * "user": "aaa",
     "verify-server-certificate": "false"
   }
+
+  tls-auth/tls-crypt are read-only flags (print: Ta - TLS-AUTH, Tc - TLS-CRYPT; RouterOS 7.23 and 7.24):
+  the key comes from `import-ovpn-configuration`, `set` has no such arguments. disconnect-notify is
+  an argument of `set` (yes/no) on the same versions.
 */
 
 // https://help.mikrotik.com/docs/display/ROS/OpenVPN
@@ -75,6 +82,12 @@ func ResourceOpenVPNClient() *schema.Resource {
 			Description: "Remote address of the OVPN server.",
 		},
 		KeyDisabled: PropDisabledRw,
+		"disconnect_notify": {
+			Type:             schema.TypeBool,
+			Optional:         true,
+			Description:      "Send the server a notification when the client disconnects.",
+			DiffSuppressFunc: AlwaysPresentNotUserProvided,
+		},
 		"hw_crypto": {
 			Type:        schema.TypeBool,
 			Computed:    true,
@@ -130,6 +143,18 @@ func ResourceOpenVPNClient() *schema.Resource {
 			DiffSuppressFunc: AlwaysPresentNotUserProvided,
 		},
 		KeyRunning: PropRunningRo,
+		"tls_auth": {
+			Type:     schema.TypeBool,
+			Computed: true,
+			Description: "Whether the control channel uses a tls-auth key (set by `import-ovpn-configuration`, " +
+				"read-only).",
+		},
+		"tls_crypt": {
+			Type:     schema.TypeBool,
+			Computed: true,
+			Description: "Whether the control channel uses a tls-crypt key (set by `import-ovpn-configuration`, " +
+				"read-only).",
+		},
 		"tls_version": {
 			Type:             schema.TypeString,
 			Optional:         true,
