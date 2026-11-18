@@ -63,14 +63,14 @@ func ResourceIpProxy() *schema.Resource {
 		"max_cache_object_size": {
 			Type:             schema.TypeString,
 			Optional:         true,
-			Description:      "Largest object to cache, KiB (or `unlimited`).",
-			DiffSuppressFunc: AlwaysPresentNotUserProvided,
+			Description:      "Largest object to cache, KiB (or `unlimited`). Suffixes `KiB`/`MiB`/`GiB` are accepted and compared by size.",
+			DiffSuppressFunc: SizeKiBEqual,
 		},
 		"max_cache_size": {
 			Type:             schema.TypeString,
 			Optional:         true,
-			Description:      "Maximum cache size, KiB (`none`, `unlimited` or a number).",
-			DiffSuppressFunc: AlwaysPresentNotUserProvided,
+			Description:      "Maximum cache size, KiB (`none`, `unlimited` or a number). Suffixes `KiB`/`MiB`/`GiB` are accepted and compared by size.",
+			DiffSuppressFunc: SizeKiBEqual,
 		},
 		"max_client_connections": {
 			Type:             schema.TypeInt,

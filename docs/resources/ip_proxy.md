@@ -20,8 +20,8 @@ resource "routeros_ip_proxy" "this" {
 - `cache_on_disk` (Boolean) Keep the cache on disk instead of RAM.
 - `cache_path` (String) Directory of the on-disk cache.
 - `enabled` (Boolean) Enable the web proxy.
-- `max_cache_object_size` (String) Largest object to cache, KiB (or `unlimited`).
-- `max_cache_size` (String) Maximum cache size, KiB (`none`, `unlimited` or a number).
+- `max_cache_object_size` (String) Largest object to cache, KiB (or `unlimited`). Suffixes `KiB`/`MiB`/`GiB` are accepted and compared by size.
+- `max_cache_size` (String) Maximum cache size, KiB (`none`, `unlimited` or a number). Suffixes `KiB`/`MiB`/`GiB` are accepted and compared by size.
 - `max_client_connections` (Number) Maximum number of client connections.
 - `max_fresh_time` (String) Maximum time an object without an explicit expiry is considered fresh.
 - `max_server_connections` (Number) Maximum number of connections to servers.
