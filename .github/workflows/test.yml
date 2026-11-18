@@ -1,0 +1,107 @@
+name: Checks
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go environment
+        uses: actions/setup-go@v6
+        with:
+          go-version: 1.25
+
+      - name: Cache restore
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        # Known upstream error: unreachable code in resource_interface_wireless_test.go:16.
+        # Only that single line is tolerated; any other vet output fails the job.
+        run: |
+          set +e
+          out=$(go vet ./... 2>&1)
+          rc=$?
+          set -e
+          printf '%s\n' "$out"
+          [ "$rc" -eq 0 ] && exit 0
+          known='^routeros/resource_interface_wireless_test\.go:16:[0-9]+: unreachable code$'
+          unexpected=$(printf '%s\n' "$out" | grep -v '^#' | grep -v -E "$known" | grep -v '^$' || true)
+          if [ -n "$unexpected" ]; then
+            echo "go vet: unexpected output:"
+            printf '%s\n' "$unexpected"
+            exit 1
+          fi
+          if ! printf '%s\n' "$out" | grep -q -E "$known"; then
+            echo "go vet failed without any output line"
+            exit 1
+          fi
+          echo "go vet: only the known upstream warning, tolerated"
+
+      - name: Unit tests, RouterOS 7.23
+        run: go test ./... -skip TestClientTransport_SendRequest
+        env:
+          ROS_VERSION: "7.23"
+
+      - name: Unit tests, RouterOS 7.24
+        run: go test ./... -skip TestClientTransport_SendRequest
+        env:
+          ROS_VERSION: "7.24"
+
+      - name: Setup OpenTofu
+        uses: opentofu/setup-opentofu@v2.0.2
+        with:
+          tofu_version: 1.13.2
+          tofu_wrapper: false
+
+      - name: Generate docs and check they are committed
+        run: |
+          tmp=$(mktemp -d)
+          go build -o "$tmp/terraform-provider-routeros" .
+          mkdir "$tmp/w"
+          cat > "$tmp/w/main.tf" <<'EOF'
+          terraform {
+            required_providers {
+              routeros = { source = "terraform-routeros/routeros" }
+            }
+          }
+          EOF
+          cat > "$tmp/tofurc" <<EOF
+          provider_installation {
+            dev_overrides {
+              "terraform-routeros/routeros" = "$tmp"
+            }
+            direct {}
+          }
+          EOF
+          (cd "$tmp/w" && TF_CLI_CONFIG_FILE="$tmp/tofurc" tofu providers schema -json > "$tmp/schema.json")
+          # tfplugindocs looks the provider up under the Terraform registry address
+          sed -i 's#registry.opentofu.org/terraform-routeros/routeros#registry.terraform.io/hashicorp/routeros#' "$tmp/schema.json"
+          go run github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs generate --provider-name routeros --providers-schema "$tmp/schema.json"
+          # same post-processing as `make docs`
+          find docs -type f -exec sed -i -E '/^.*__[[:alpha:]_]+__/d' {} \;
+          git status --short docs/
+          git diff --exit-code docs/
+          test -z "$(git ls-files --others --exclude-standard docs/)"
+
+      - name: Public content check
+        run: .github/scripts/public-check.sh 0d8c069
