@@ -57,8 +57,8 @@ func ResourceContainer() *schema.Resource {
 			Description: "The main purpose of a CMD is to provide defaults for an executing container. These defaults can include an executable, or they can omit the executable, in which case you must specify an ENTRYPOINT instruction as well.",
 		},
 		"cpu_list": {
-			Type:        schema.TypeString,
-			Optional:    true,
+			Type:     schema.TypeString,
+			Optional: true,
 		},
 		"cpu_usage": {
 			Type:        schema.TypeFloat,
@@ -97,10 +97,11 @@ func ResourceContainer() *schema.Resource {
 			Description: "list of environmental variables (in the form `key=val`) to be used with container",
 		},
 		"envlists": {
-			Type:        schema.TypeSet,
-			Elem:        &schema.Schema{Type: schema.TypeString},
-			Optional:    true,
-			Description: "list of environmental variables lists (configured under /container envs) to be used with container",
+			Type:     schema.TypeSet,
+			Elem:     &schema.Schema{Type: schema.TypeString},
+			Optional: true,
+			Description: "Lists of environment variables (configured under /container/envs) to be used with the container. " +
+				"RouterOS before 7.20 has a single `envlist` parameter, the provider maps the attribute to it.",
 		},
 		"file": {
 			Type:         schema.TypeString,
@@ -152,9 +153,16 @@ func ResourceContainer() *schema.Resource {
 			Type:             schema.TypeString,
 			Optional:         true,
 			Description:      "RAM usage limit in bytes for a specific container (string value).",
-			DiffSuppressFunc: AlwaysPresentNotUserProvided,
+			DiffSuppressFunc: BytesEqual,
 		},
-	    "mount": {
+		"memory_max": {
+			Type:     schema.TypeString,
+			Optional: true,
+			Description: "Max RAM usage limit in bytes for a specific container (string value). The container process " +
+				"will be terminated if the limit is smaller than the container memory usage.",
+			DiffSuppressFunc: BytesEqual,
+		},
+		"mount": {
 			Type:        schema.TypeSet,
 			Elem:        &schema.Schema{Type: schema.TypeString},
 			Optional:    true,
@@ -162,10 +170,11 @@ func ResourceContainer() *schema.Resource {
 		},
 
 		"mountlists": {
-			Type:        schema.TypeSet,
-			Optional:    true,
-			Elem:        &schema.Schema{Type: schema.TypeString},
-			Description: "Mount lists from /container/mounts/ sub-menu to be used with this container",
+			Type:     schema.TypeSet,
+			Optional: true,
+			Elem:     &schema.Schema{Type: schema.TypeString},
+			Description: "Mount lists from /container/mounts/ sub-menu to be used with this container. " +
+				"RouterOS before 7.21 has a `mounts` parameter instead, the provider maps the attribute to it.",
 		},
 		"name": {
 			Type:        schema.TypeString,

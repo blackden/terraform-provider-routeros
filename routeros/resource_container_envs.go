@@ -11,10 +11,11 @@ func ResourceContainerEnvs() *schema.Resource {
 		MetaId:           PropId(Id),
 
 		KeyDisabled: PropDisabledRw,
-		"name": {
-			Type:        schema.TypeString,
-			Required:    true,
-			Description: "Name of the environment variables list.",
+		"list": {
+			Type:     schema.TypeString,
+			Required: true,
+			Description: "Name of the environment variables list. RouterOS before 7.20 calls the parameter `name`, " +
+				"the provider maps the attribute to it.",
 		},
 		"key": {
 			Type:        schema.TypeString,
@@ -59,13 +60,13 @@ resource "routeros_container_envs" "test" {
 }
 
 resource "routeros_container_envs" "test_foo" {
-	name  = "test"
+	list  = "test"
 	key   = "foo"
 	value = "bar"
   }
 
   resource "routeros_container_envs" "test_hello" {
-	name  = "test"
+	list  = "test"
 	key   = "hello"
 	value = "wold"
   }

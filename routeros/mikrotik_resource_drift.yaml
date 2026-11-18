@@ -24,16 +24,30 @@
   /interface/vxlan:
     - tf: vrf
       mt: vtep-vrf
+  # The schema carries the current names (envlists, memory_high, list);
+  # older RouterOS gets the old parameter names.
   /container:
-    - tf: envlist
-      mt: envlists
+    - tf: envlists
+      mt: envlist
+      before: true
   /container/config:
-    - tf: ram_high
-      mt: memory-high
+    - tf: memory_high
+      mt: ram-high
+      before: true
   /container/envs:
-    - tf: name
-      mt: list
+    - tf: list
+      mt: name
+      before: true
 7.21:
+  # Mount lists appeared in 7.21 (upstream PR #910).
+  /container:
+    - tf: mountlists
+      mt: mounts
+      before: true
+  /container/mounts:
+    - tf: list
+      mt: name
+      before: true
   /ip/ssh:
     - tf: always-allow-password-login
       mt: password-authentication

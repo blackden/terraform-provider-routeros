@@ -12,8 +12,9 @@ import (
 )
 
 type YamlROS map[string]map[string][]struct {
-	TF string
-	MT string
+	TF     string
+	MT     string
+	Before bool // the mapping applies to RouterOS versions lower than the key version
 }
 
 func main() {
@@ -43,7 +44,11 @@ func init() {
 {{- range $version, $resource := . }}
   {{- range $name, $attributes := $resource }}
     {{- range $attr := $attributes }}
+    {{- if $attr.Before }}
+    {{ printf "driftAttributeSlice.AddBefore(%q, %q, %q, %q)" $version $name $attr.TF $attr.MT }}
+    {{- else }}
     {{ printf "driftAttributeSlice.Add(%q, %q, %q, %q)" $version $name $attr.TF $attr.MT }}
+    {{- end }}
     {{- end }}
   {{- end }}
 {{- end }}

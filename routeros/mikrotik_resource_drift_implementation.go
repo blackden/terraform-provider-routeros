@@ -21,6 +21,10 @@ type driftObject struct {
 type driftAttribute struct {
 	TF string
 	MT string
+	// Before inverts the version check: the mapping applies to RouterOS versions
+	// strictly lower than the object version. Used when the schema already carries
+	// the new (current) MikroTik name and older routers still use the old one.
+	Before bool
 }
 
 // Add an object to the slice.
@@ -29,18 +33,30 @@ type driftAttribute struct {
 // attrTF - attribute name in the latest schema version
 // attrMT - attribute name in MikroTik parameters
 func (do *driftObjects) Add(ros, resourcePath, attrTF, attrMT string) {
+	do.add(ros, resourcePath, driftAttribute{TF: attrTF, MT: attrMT})
+}
+
+// AddBefore adds a mapping that applies to RouterOS versions lower than ros.
+// ros - the first RouterOS version where the MikroTik parameter got its current name (7.21)
+// attrTF - attribute name in the schema (equal to the current MikroTik name)
+// attrMT - the old MikroTik parameter name used before ros
+func (do *driftObjects) AddBefore(ros, resourcePath, attrTF, attrMT string) {
+	do.add(ros, resourcePath, driftAttribute{TF: attrTF, MT: attrMT, Before: true})
+}
+
+func (do *driftObjects) add(ros, resourcePath string, attr driftAttribute) {
 	version, err := parseRouterOSVersion(ros)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	if i := do.index(version); i != -1 {
-		(*do)[i].Resources[resourcePath] = append((*do)[i].Resources[resourcePath], driftAttribute{attrTF, attrMT})
+		(*do)[i].Resources[resourcePath] = append((*do)[i].Resources[resourcePath], attr)
 	} else {
 		*do = append(*do, driftObject{
 			Version:   version,
 			ros:       ros,
-			Resources: map[string][]driftAttribute{resourcePath: {{attrTF, attrMT}}},
+			Resources: map[string][]driftAttribute{resourcePath: {attr}},
 		})
 	}
 }
@@ -72,8 +88,8 @@ func (do *driftObjects) GetDriftMap(ros, resName string, reverse bool) (res map[
 
 	res = map[string]string{}
 	for i := range *do {
-		if version >= (*do)[i].Version {
-			for _, attr := range (*do)[i].Resources[resName] {
+		for _, attr := range (*do)[i].Resources[resName] {
+			if attr.Before != (version >= (*do)[i].Version) {
 				if !reverse {
 					res[attr.TF] = attr.MT
 				} else {
