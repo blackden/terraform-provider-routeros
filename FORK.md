@@ -135,6 +135,9 @@ network interface, so the tests that need `ether2`-`ether4` are skipped:
 `TestAccToolSnifferTest_basic`. This is a deliberate coverage gap; re-enable
 them when a multi-NIC CHR image is available.
 
+The acceptance workflow also runs on every `v*` tag. Publish the draft release
+only when both `checks` and `acceptance` are green on the tag commit.
+
 ## Versions
 
 The fork follows the upstream version line. `1.100.0` is the first fork release;
