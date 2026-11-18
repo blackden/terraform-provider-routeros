@@ -28,6 +28,10 @@ provider "routeros" {
 `
 
 func init() {
+	// Unit tests (serialize/drift) need RouterOSVersion even without TF_ACC.
+	if RouterOSVersion == "" {
+		RouterOSVersion = os.Getenv("ROS_VERSION")
+	}
 	testAccProvider = Provider()
 	testAccProviderFactories = map[string]func() (*schema.Provider, error){
 		"routeros": func() (*schema.Provider, error) {
