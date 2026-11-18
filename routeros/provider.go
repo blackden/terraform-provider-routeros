@@ -335,6 +335,7 @@ func Provider() *schema.Provider {
 			"routeros_ip_ipsec_proposal":     ResourceIpIpsecProposal(),
 			"routeros_ip_ipsec_settings":     ResourceIpIpsecSettings(),
 			"routeros_ovpn_server":           ResourceOpenVPNServer(),
+			"routeros_ovpn_server_instance":  ResourceOpenVPNServerInstance(),
 
 			// PPP
 			"routeros_ppp_aaa":     ResourcePppAaa(),
