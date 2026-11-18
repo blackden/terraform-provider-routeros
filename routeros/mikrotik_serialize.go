@@ -216,9 +216,14 @@ func TerraformResourceDataToMikrotik(s map[string]*schema.Schema, d *schema.Reso
 		switch terraformMetadata.Type {
 		case schema.TypeString:
 			// RouterOS returns write-only secrets masked ("*****"). The mask in the state is
-			// not a password: never send it back when the secret is not set in the configuration.
-			if terraformMetadata.Sensitive && isMaskedSecret(value.(string)) && rawConfig.GetAttr(terraformSnakeName).IsNull() {
-				continue
+			// not a password: send it only when the configuration holds exactly that value.
+			// An absent or empty secret in the configuration (its diff is suppressed by
+			// MaskedSecretNotInConfig, so d.Get returns the mask from the state) is skipped.
+			// GetAttr stays behind the cheap checks: rawConfig can be null in direct calls.
+			if terraformMetadata.Sensitive && isMaskedSecret(value.(string)) {
+				if cv := rawConfig.GetAttr(terraformSnakeName); cv.IsNull() || (cv.IsKnown() && cv.AsString() != value.(string)) {
+					continue
+				}
 			}
 			if _, ok := setUnsetFields[terraformSnakeName]; ok && value.(string) == "" {
 				// Unset
@@ -253,25 +258,44 @@ func TerraformResourceDataToMikrotik(s map[string]*schema.Schema, d *schema.Reso
 
 			case *schema.Resource:
 
-				// skip if object is empty
-				if value.([]interface{})[0] == nil {
-					continue
-				}
+				elemSchema := terraformMetadata.Elem.(*schema.Resource).Schema
+				var list map[string]interface{}
+				var ctyList cty.Value
 
-				list := value.([]interface{})[0].(map[string]interface{})
-				ctyList := rawConfig.GetAttr(terraformSnakeName).AsValueSlice()[0]
+				// The block was removed from the configuration (indexing [0] here
+				// panicked). Changed fields of the block are sent with their zero values, the
+				// way a removed top-level attribute is.
+				removed := len(value.([]interface{})) == 0
+				if removed {
+					list = make(map[string]interface{}, len(elemSchema))
+					for fieldName := range elemSchema {
+						list[fieldName] = d.Get(fmt.Sprintf("%v.%v.%v", terraformSnakeName, 0, fieldName))
+					}
+				} else {
+					// skip if object is empty
+					if value.([]interface{})[0] == nil {
+						continue
+					}
+
+					list = value.([]interface{})[0].(map[string]interface{})
+					ctyList = rawConfig.GetAttr(terraformSnakeName).AsValueSlice()[0]
+				}
 
 				for fieldName, value := range list {
 					// "output.0.affinity"
 					fieldNameInState := fmt.Sprintf("%v.%v.%v", terraformSnakeName, 0, fieldName)
-					fieldSchema := terraformMetadata.Elem.(*schema.Resource).Schema[fieldName]
+					fieldSchema := elemSchema[fieldName]
 
 					// Skip all read-only properties.
 					if fieldSchema.Computed && !fieldSchema.Optional {
 						continue
 					}
 
-					if fieldSchema.Optional && !d.HasChange(fieldNameInState) &&
+					if removed {
+						if !d.HasChange(fieldNameInState) {
+							continue
+						}
+					} else if fieldSchema.Optional && !d.HasChange(fieldNameInState) &&
 						isEmpty(fieldNameInState, fieldSchema, d, ctyList.GetAttr(fieldName)) {
 						continue
 					}

@@ -38,8 +38,9 @@ import (
   the key comes from `import-ovpn-configuration`, `set` has no such arguments. disconnect-notify is
   an argument of `set` (yes/no) on the same versions. With protocol=tcp RouterOS 7.24.6 accepts
   disconnect-notify in add/set but does not return it in print/get.
-  import-ovpn-configuration takes the <tls-crypt> block only with `key-direction` in the file
-  (7.24.6); without it the import succeeds and tls-crypt stays unset.
+  import-ovpn-configuration on 7.24.6: in a test the <tls-crypt> block was imported only when the
+  file had `key-direction`; without it the import succeeded and tls-crypt stayed unset. Whether
+  `key-direction` alone is enough was not checked.
 */
 
 // https://help.mikrotik.com/docs/display/ROS/OpenVPN
@@ -114,9 +115,10 @@ func ResourceOpenVPNClient() *schema.Resource {
 		},
 		KeyName: PropName("Descriptive name of the interface."),
 		"password": {
-			Type:             schema.TypeString,
-			Optional:         true,
-			Description:      "Password used for authentication. If absent or empty, the password is not managed: the router keeps its value and it cannot be cleared through the configuration.",
+			Type:     schema.TypeString,
+			Optional: true,
+			Description: "Password used for authentication. " +
+				"RouterOS returns the password masked (`*****`) when the provider's RouterOS user lacks the `sensitive` policy: then an absent or empty password is not managed, the router keeps its value, the mask is never sent back, and the password cannot be cleared through the configuration. With the `sensitive` policy RouterOS returns the real password: an absent or empty password is then a planned change of `password` (to null or `\"\"`, shown as `(sensitive value)`), and apply clears the password on the router.",
 			Sensitive:        true,
 			DiffSuppressFunc: MaskedSecretNotInConfig,
 		},

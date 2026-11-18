@@ -56,6 +56,10 @@ type forkPayloadField struct {
 	// sets the default or (not for booleans) the zero value. Without a Default the zero value
 	// itself is "not set" and is dropped unless it is a change.
 	Default string
+	// Unset: a change to the zero value is sent as `!key` on update (forkUpdateOnlyChanged).
+	// Only for fields where REST honours it (7.24.6): REST ignores `!local.ttl` and
+	// `!comment` silently.
+	Unset bool
 }
 
 // forkDropUnsetFields removes from a create/update payload the fields that RouterOS left out of the
@@ -83,6 +87,73 @@ func forkDropUnsetFields(s map[string]*schema.Schema, d *schema.ResourceData, it
 		key := forkPayloadKey(f.Attr, drift)
 		delete(item, key)
 		delete(item, "!"+key)
+	}
+}
+
+// forkUpdateOnlyChanged keeps in an update payload only the fields that change.
+//
+// RouterOS returns the values a connection inherits from `templates` as its own (7.24.6:
+// GET and print show them, export does not), and the serializer sends the whole object, so a
+// PATCH that changed only `comment` wrote as, hold-time, input.allow-as... onto the connection and
+// broke the inheritance; zero values of the generated configuration (`input.filter-nlri = ""`) were
+// written as explicit empty values. A PATCH changes only the keys it carries, so dropping an
+// unchanged field leaves the router value as it is.
+//
+// A field of `fields` marked Unset (affinity, default-originate, redistribute,
+// limit-process-routes-*) that changes to the zero value, removed from the configuration or set
+// to ""/0, is unset ("!key"): RouterOS 7.24 rejects the zero value or, for
+// limit-process-routes-ipv4=0, stores it as an explicit value, while `!key` removes the key.
+// Other fields changed to zero are sent as before: REST ignores `!comment` and
+// `!local.ttl`, and RouterOS 7.24.6 cannot clear local.ttl at all (unset, "" and 0 fail).
+func forkUpdateOnlyChanged(s map[string]*schema.Schema, d *schema.ResourceData, item MikrotikItem, fields []forkPayloadField) {
+	drift := driftAttributeSlice.GetDriftMap(RouterOSVersion, s[MetaResourcePath].Default.(string), false)
+	zeroIsUnset := map[string]bool{}
+	defaults := map[string]string{}
+	for _, f := range fields {
+		if f.Unset {
+			zeroIsUnset[f.Attr] = true
+		}
+		if f.Default != "" {
+			defaults[f.Attr] = f.Default
+		}
+	}
+	changed := func(attr string, fs *schema.Schema) bool {
+		if d.HasChange(attr) {
+			return true
+		}
+		// A boolean RouterOS left out (state "", the router has the Default) reads as false:
+		// `connect = false` is a change that HasChange does not see.
+		if def, ok := defaults[attr]; ok && fs.Type == schema.TypeBool {
+			conf := forkRawConfigAt(d, attr)
+			return !conf.IsNull() && conf.IsKnown() && forkCtyString(conf) != def
+		}
+		return false
+	}
+	handle := func(attr string, fs *schema.Schema) {
+		key := forkPayloadKey(attr, drift)
+		_, has := item[key]
+		_, hasUnset := item["!"+key]
+		if !has && !hasUnset {
+			return
+		}
+		if !changed(attr, fs) {
+			delete(item, key)
+			delete(item, "!"+key)
+			return
+		}
+		if zeroIsUnset[attr] && !hasUnset && forkIsZero(d.Get(attr)) {
+			delete(item, key)
+			item["!"+key] = ""
+		}
+	}
+	for name, sch := range s {
+		if elem, ok := sch.Elem.(*schema.Resource); ok && sch.Type == schema.TypeList {
+			for f, fs := range elem.Schema {
+				handle(name+".0."+f, fs)
+			}
+			continue
+		}
+		handle(name, sch)
 	}
 }
 
@@ -156,7 +227,8 @@ func forkIsZero(v interface{}) bool {
 	return false
 }
 
-// forkFilterClient drops unset fields from create/update payloads of one resource.
+// forkFilterClient drops unset fields from create/update payloads of one resource; an update
+// carries only the changed fields (forkUpdateOnlyChanged).
 type forkFilterClient struct {
 	Client
 	s      map[string]*schema.Schema
@@ -167,6 +239,9 @@ type forkFilterClient struct {
 func (c *forkFilterClient) SendRequest(method crudMethod, url *URL, item MikrotikItem, result interface{}) error {
 	if item != nil && (method == crudCreate || method == crudUpdate) {
 		forkDropUnsetFields(c.s, c.d, item, c.fields)
+		if method == crudUpdate {
+			forkUpdateOnlyChanged(c.s, c.d, item, c.fields)
+		}
 	}
 	return c.Client.SendRequest(method, url, item, result)
 }
@@ -178,7 +253,7 @@ func ForkCreateDropUnset(s map[string]*schema.Schema, fields []forkPayloadField)
 	}
 }
 
-// ForkUpdateDropUnset is DefaultUpdate without the unset fields in the payload.
+// ForkUpdateDropUnset is DefaultUpdate with only the changed fields in the payload.
 func ForkUpdateDropUnset(s map[string]*schema.Schema, fields []forkPayloadField) schema.UpdateContextFunc {
 	return func(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 		return ResourceUpdate(ctx, s, d, &forkFilterClient{Client: m.(Client), s: s, d: d, fields: fields})

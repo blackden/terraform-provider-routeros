@@ -273,9 +273,8 @@ func TestBgpConnectionUpdatePayload(t *testing.T) {
 					}
 				}
 			}
-			if id == "*7" && item["keepalive-time"] != "4m" {
-				t.Errorf("keepalive-time = %q, want 4m", item["keepalive-time"])
-			}
+			// An update carries only the changed fields (TestBgpConnectionUpdateOnlyChanged).
+			bgpPayloadEqual(t, item, map[string]string{"comment": "test changed"})
 
 			// A real value is sent.
 			withTTL := bgpSetNested(t, bgpSetNested(t, changed, "local", "ttl", cty.NumberIntVal(64)),
@@ -317,5 +316,150 @@ func TestBgpConnectionCreatePayload(t *testing.T) {
 	}
 	if v, ok := w.item["local.ttl"]; ok {
 		t.Errorf("local.ttl = %q is sent", v)
+	}
+}
+
+// Raw REST responses of RouterOS 7.24.
+var bgpConnectionTemplated = map[string]MikrotikItem{
+	// test-bgp-tpl-out with templates=test-tpl. GET returns the effective values: as, hold-time,
+	// keepalive-time, multihop, nexthop-choice, input.accept-nlri, input.allow-as, output.default-prepend
+	// and output.no-early-cut come from the template (the connection's export does not list them).
+	"*B": {
+		".id": "*B", "as": "64498", "comment": "test-tpl-comment", "disabled": "true", "hold-time": "4m", "inactive": "true",
+		"input.accept-nlri": "networks", "input.allow-as": "3", "input.filter": "filter-in",
+		"instance": "bgp-instance-1", "keepalive-time": "1m", "local.address": "192.0.2.100", "local.role": "ebgp",
+		"multihop": "true", "name": "test-bgp-tpl-out", "nexthop-choice": "force-self", "output.default-prepend": "1",
+		"output.filter-chain": "discard", "output.network": "networks", "output.no-client-to-client-reflection": "true",
+		"output.no-early-cut": "true", "remote.address": "192.0.2.2/32", "remote.as": "64502", "routing-table": "main",
+		"templates": "test-tpl",
+	},
+	// test-bgp-u after `input { limit_process_routes_ipv4 = 80000 }` was applied.
+	"*A": {
+		".id": "*A", "as": "64496", "comment": "test-u1", "disabled": "true", "inactive": "true",
+		"input.limit-process-routes-ipv4": "80000", "instance": "bgp-instance-1", "local.address": "",
+		"local.role": "ebgp", "name": "test-bgp-u", "remote.address": "192.0.2.1", "remote.allowed-as": "",
+		"remote.as": "64497", "routing-table": "main",
+	},
+}
+
+func bgpWithoutBlock(cfg cty.Value, block string) cty.Value {
+	attrs := cfg.AsValueMap()
+	attrs[block] = cty.ListValEmpty(attrs[block].Type().ElementType())
+	return cty.ObjectVal(attrs)
+}
+
+func bgpPayloadEqual(t *testing.T, got MikrotikItem, want map[string]string) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Errorf("payload %v, want exactly %v", got, want)
+		return
+	}
+	for k, v := range want {
+		if gv, ok := got[k]; !ok || gv != v {
+			t.Errorf("payload %v, want exactly %v", got, want)
+			return
+		}
+	}
+}
+
+// An update sends only what changed. GET returns the values inherited from `templates`,
+// a full-object PATCH wrote them onto the connection (a comment change pinned as, hold-time,
+// input.allow-as... and wrote input.* = "" explicitly), breaking inheritance from the template.
+func TestBgpConnectionUpdateOnlyChanged(t *testing.T) {
+	r := ResourceRoutingBgpConnection()
+	c := newFakeClient(map[string][]MikrotikItem{"/routing/bgp/connection": {bgpConnectionTemplated["*B"]}})
+	st, diags := fakeRead(t, r, "*B", nil, c)
+	if diags.HasError() {
+		t.Fatalf("read: %v", diags)
+	}
+	cfg := bgpGeneratedConfig(t, r, st)
+	if d := bgpDiff(t, r, st, cfg, c); d != nil && !d.Empty() {
+		t.Fatalf("second plan is not empty: %v", d.Attributes)
+	}
+
+	attrs := cfg.AsValueMap()
+	attrs["comment"] = cty.StringVal("test-u1")
+	changed := cty.ObjectVal(attrs)
+	bgpPayloadEqual(t, bgpFakeUpdate(t, r, st, changed, c), map[string]string{"comment": "test-u1"})
+
+	limit := bgpSetNested(t, cfg, "input", "limit_process_routes_ipv4", cty.NumberIntVal(80000))
+	bgpPayloadEqual(t, bgpFakeUpdate(t, r, st, limit, c), map[string]string{"input.limit-process-routes-ipv4": "80000"})
+
+	// An override equal to the schema Default of a value inherited from the template is a change
+	// and is sent (GET returns the inherited nexthop-choice=force-self, not an absent field).
+	attrs = cfg.AsValueMap()
+	attrs["nexthop_choice"] = cty.StringVal("default")
+	bgpPayloadEqual(t, bgpFakeUpdate(t, r, st, cty.ObjectVal(attrs), c), map[string]string{"nexthop-choice": "default"})
+
+	// Other fields removed from the configuration are sent with their zero value (REST ignores
+	// `!comment`).
+	attrs = cfg.AsValueMap()
+	attrs["comment"] = cty.NullVal(cty.String)
+	bgpPayloadEqual(t, bgpFakeUpdate(t, r, st, cty.ObjectVal(attrs), c), map[string]string{"comment": ""})
+
+	// affinity and default_originate changed to the zero value are unset; ttl is not (REST ignores
+	// `!local.ttl`, RouterOS 7.24.6 cannot clear it): 0 is sent and RouterOS reports the error.
+	set := bgpSetNested(t, bgpSetNested(t, cfg, "local", "ttl", cty.NumberIntVal(0)), "input", "affinity", cty.StringVal(""))
+	set = bgpSetNested(t, set, "output", "default_originate", cty.StringVal(""))
+	stSet, _ := fakeRead(t, r, "*B", nil, newFakeClient(map[string][]MikrotikItem{"/routing/bgp/connection": {
+		func() MikrotikItem {
+			it := MikrotikItem{}
+			for k, v := range bgpConnectionTemplated["*B"] {
+				it[k] = v
+			}
+			it["local.ttl"], it["input.affinity"], it["output.default-originate"] = "64", "alone", "always"
+			return it
+		}(),
+	}}))
+	bgpPayloadEqual(t, bgpFakeUpdate(t, r, stSet, set, c),
+		map[string]string{"local.ttl": "0", "!input.affinity": "", "!output.default-originate": ""})
+}
+
+// Removing the limit unsets it (RouterOS: `unset` removes the key, `0` is stored as an explicit value
+// whose meaning is not documented). Removing the whole block used to panic in the serializer
+// (index out of range [0] with length 0).
+func TestBgpConnectionRemoveLimit(t *testing.T) {
+	r := ResourceRoutingBgpConnection()
+	unset := map[string]string{"!input.limit-process-routes-ipv4": ""}
+	c := newFakeClient(map[string][]MikrotikItem{"/routing/bgp/connection": {bgpConnectionTemplated["*A"]}})
+	st, diags := fakeRead(t, r, "*A", nil, c)
+	if diags.HasError() {
+		t.Fatalf("read: %v", diags)
+	}
+	cfg := bgpGeneratedConfig(t, r, st)
+	if st.Attributes["input.0.limit_process_routes_ipv4"] != "80000" {
+		t.Fatalf("state limit = %q", st.Attributes["input.0.limit_process_routes_ipv4"])
+	}
+
+	t.Run("block removed", func(t *testing.T) {
+		bgpPayloadEqual(t, bgpFakeUpdate(t, r, st, bgpWithoutBlock(cfg, "input"), c), unset)
+	})
+	t.Run("field removed", func(t *testing.T) {
+		in := r.CoreConfigSchema().ImpliedType().AttributeType("input").ElementType()
+		bgpPayloadEqual(t, bgpFakeUpdate(t, r, st,
+			bgpSetNested(t, cfg, "input", "limit_process_routes_ipv4", cty.NullVal(in.AttributeType("limit_process_routes_ipv4"))), c), unset)
+	})
+	t.Run("set to 0", func(t *testing.T) {
+		bgpPayloadEqual(t, bgpFakeUpdate(t, r, st,
+			bgpSetNested(t, cfg, "input", "limit_process_routes_ipv4", cty.NumberIntVal(0)), c), unset)
+	})
+}
+
+// The serializer does not panic when a nested block is removed from the configuration (upstream
+// resources, DefaultUpdate): changed fields of the removed block are sent with their zero values,
+// the way a removed top-level attribute is.
+func TestSerializeRemovedNestedBlock(t *testing.T) {
+	r := ResourceRoutingBgpTemplate()
+	c := newFakeClient(map[string][]MikrotikItem{"/routing/bgp/template": {
+		{".id": "*5", "as": "64498", "name": "test-tpl", "input.allow-as": "3"},
+	}})
+	st, diags := fakeRead(t, r, "*5", nil, c)
+	if diags.HasError() {
+		t.Fatalf("read: %v", diags)
+	}
+	cfg := bgpGeneratedConfig(t, r, st)
+	item := bgpFakeUpdate(t, r, st, bgpWithoutBlock(cfg, "input"), c)
+	if item["input.allow-as"] != "0" {
+		t.Errorf("input.allow-as = %q, want \"0\": %v", item["input.allow-as"], item)
 	}
 }

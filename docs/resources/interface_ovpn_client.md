@@ -24,7 +24,7 @@
 - `mac_address` (String) Mac address of OVPN interface. Will be automatically generated if not specified.
 - `max_mtu` (Number) Maximum Transmission Unit. Max packet size that the OVPN interface will be able to send without packet fragmentation.
 - `mode` (String) Layer3 or layer2 tunnel mode (alternatively tun, tap)
-- `password` (String, Sensitive) Password used for authentication. If absent or empty, the password is not managed: the router keeps its value and it cannot be cleared through the configuration.
+- `password` (String, Sensitive) Password used for authentication. RouterOS returns the password masked (`*****`) when the provider's RouterOS user lacks the `sensitive` policy: then an absent or empty password is not managed, the router keeps its value, the mask is never sent back, and the password cannot be cleared through the configuration. With the `sensitive` policy RouterOS returns the real password: an absent or empty password is then a planned change of `password` (to null or `""`, shown as `(sensitive value)`), and apply clears the password on the router.
 - `port` (Number) Port to connect to.
 - `profile` (String) Specifies which PPP profile configuration will be used when establishing the tunnel.
 - `protocol` (String) Indicates the protocol to use when connecting with the remote endpoint.

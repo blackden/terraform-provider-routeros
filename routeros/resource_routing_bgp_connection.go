@@ -76,13 +76,15 @@ var bgpConnectionUnsetFields = []forkPayloadField{
 	{Attr: "remote.0.port", Default: "179"},
 	{Attr: "local.0.ttl"},
 	{Attr: "remote.0.ttl"},
-	{Attr: "output.0.default_originate"},
-	{Attr: "output.0.redistribute"},
+	// Unset: a change to the zero value is sent as `!key` (forkUpdateOnlyChanged;
+	// checked by REST PATCH, except ipv6 and output.affinity - same kind of field).
+	{Attr: "output.0.default_originate", Unset: true},
+	{Attr: "output.0.redistribute", Unset: true},
 	// RouterOS 7.24 rejects affinity=""; limit-process-routes=0 is stored as a limit.
-	{Attr: "input.0.affinity"},
-	{Attr: "output.0.affinity"},
-	{Attr: "input.0.limit_process_routes_ipv4"},
-	{Attr: "input.0.limit_process_routes_ipv6"},
+	{Attr: "input.0.affinity", Unset: true},
+	{Attr: "output.0.affinity", Unset: true},
+	{Attr: "input.0.limit_process_routes_ipv4", Unset: true},
+	{Attr: "input.0.limit_process_routes_ipv6", Unset: true},
 }
 
 // https://help.mikrotik.com/docs/display/ROS/BGP#BGP-ConnectionMenu
@@ -236,7 +238,10 @@ func ResourceRoutingBgpConnection() *schema.Resource {
 							"similar parameters main - run input/output in the main process (could potentially " +
 							"increase performance on single-core even possibly on multi-core devices with a small " +
 							"amount of cores) input - run output in the same process as input (can be set only for " +
-							"output affinity)",
+							"output affinity). " +
+							"An explicit `\"\"` equal to the state (RouterOS did not return the field, as after import) " +
+							"is treated as not set and is not sent to RouterOS; removing a set value or changing it to " +
+							"`\"\"` unsets it on RouterOS (RouterOS 7.24 rejects `\"\"`).",
 					},
 					"allow_as": {
 						Type:     schema.TypeInt,
@@ -318,7 +323,10 @@ func ResourceRoutingBgpConnection() *schema.Resource {
 						Description: "Try to limit the amount of received IPv4 routes to the specified number. This number " +
 							"does not represent the exact number of routes going to be installed in the routing " +
 							"table by the peer. BGP session 'clear' command must be used to reset the flag if the " +
-							"limit is reached.",
+							"limit is reached. An explicit `0` equal to the state (RouterOS did not return the field, " +
+							"as after import) is treated as not set and is not sent to RouterOS; removing a set limit " +
+							"(or the `input` block) or changing it to `0` unsets it on RouterOS, i.e. no limit " +
+							"(RouterOS 7.24 would store `0` as an explicit value of undocumented meaning).",
 					},
 					"limit_process_routes_ipv6": {
 						Type:     schema.TypeInt,
@@ -326,7 +334,10 @@ func ResourceRoutingBgpConnection() *schema.Resource {
 						Description: "Try to limit the amount of received IPv6 routes to the specified number. This number " +
 							"does not represent the exact number of routes going to be installed in the routing " +
 							"table by the peer. BGP session 'clear' command must be used to reset the flag if the " +
-							"limit is reached.",
+							"limit is reached. An explicit `0` equal to the state (RouterOS did not return the field, " +
+							"as after import) is treated as not set and is not sent to RouterOS; removing a set limit " +
+							"(or the `input` block) or changing it to `0` unsets it on RouterOS, i.e. no limit " +
+							"(RouterOS 7.24 would store `0` as an explicit value of undocumented meaning).",
 					},
 				},
 			},
@@ -403,7 +414,7 @@ func ResourceRoutingBgpConnection() *schema.Resource {
 						Type:     schema.TypeInt,
 						Optional: true,
 						Description: "Time To Live (hop limit) that will be recorded in sent TCP packets. `0` (what " +
-							"`-generate-config-out` writes for an unset value) means not set and is not sent to RouterOS, unless a set value is changed to it (RouterOS rejects that).",
+							"`-generate-config-out` writes for an unset value) means not set and is not sent to RouterOS. A set value cannot be cleared: RouterOS 7.24.6 rejects `0`, `\"\"` and `unset`, so changing it to `0` fails on apply.",
 						// 0: unset value of an imported connection.
 						ValidateFunc:     validation.Any(validation.IntBetween(1, 255), validation.IntInSlice([]int{0})),
 						DiffSuppressFunc: DiffSuppressUnsetZero,
@@ -457,7 +468,10 @@ func ResourceRoutingBgpConnection() *schema.Resource {
 							"parameters main - run input/output in the main process (could potentially increase " +
 							"performance on single-core even possibly on multicore devices with small amount of " +
 							"cores) input - run output in the same process as input (can be set only for output " +
-							"affinity).",
+							"affinity). " +
+							"An explicit `\"\"` equal to the state (RouterOS did not return the field, as after import) " +
+							"is treated as not set and is not sent to RouterOS; removing a set value or changing it to " +
+							"`\"\"` unsets it on RouterOS (RouterOS 7.24 rejects `\"\"`).",
 					},
 					"as_override": {
 						Type:     schema.TypeBool,
@@ -476,7 +490,7 @@ func ResourceRoutingBgpConnection() *schema.Resource {
 						Type:     schema.TypeString,
 						Optional: true,
 						Description: "Specifies default route (0.0.0.0/0) distribution method. `\"\"` (what " +
-							"`-generate-config-out` writes for an unset value) means not set and is not sent to RouterOS, unless a set value is changed to it (RouterOS rejects that).",
+							"`-generate-config-out` writes for an unset value) means not set and is not sent to RouterOS; removing a set value or changing it to `\"\"` unsets it on RouterOS (RouterOS 7.24 rejects `\"\"` itself).",
 						// "": unset value of an imported connection.
 						ValidateFunc:     validation.StringInSlice([]string{"", "always", "if-installed", "never"}, false),
 						DiffSuppressFunc: DiffSuppressUnsetZero,
@@ -585,7 +599,7 @@ func ResourceRoutingBgpConnection() *schema.Resource {
 						Description: "Acceptable minimum Time To Live, the hop limit for this TCP connection. For " +
 							"example, if 'ttl=255' then only single-hop neighbors will be able to establish the " +
 							"connection. This property only affects EBGP peers. `0` (what `-generate-config-out` writes " +
-							"for an unset value) means not set and is not sent to RouterOS, unless a set value is changed to it (RouterOS rejects that).",
+							"for an unset value) means not set and is not sent to RouterOS. A set value cannot be cleared: RouterOS 7.24.6 rejects `0`, `\"\"` and `unset`, so changing it to `0` fails on apply.",
 						// 0: unset value of an imported connection.
 						ValidateFunc:     validation.Any(validation.IntBetween(1, 255), validation.IntInSlice([]int{0})),
 						DiffSuppressFunc: DiffSuppressUnsetZero,
@@ -641,8 +655,14 @@ func ResourceRoutingBgpConnection() *schema.Resource {
 	return &schema.Resource{
 		Description: "> [!WARNING] Using this resource you may happen unexpected behavior, for example, some of the attributes " +
 			"may not be removable after adding them to the TF configuration. Please report this to GitHub and it " +
-			"may be possible to fix it. Use the resource at your own risk as it is!",
+			"may be possible to fix it. Use the resource at your own risk as it is!\n\n" +
+			"In this fork an update sends only the changed arguments. RouterOS returns the values a connection " +
+			"inherits from `templates` as its own; writing them back would pin them on the connection and break " +
+			"the inheritance. Removing `affinity`, `default_originate`, `redistribute` or " +
+			"`limit_process_routes_*` (or changing them to the zero value) unsets them on RouterOS; other removed " +
+			"arguments are sent with their zero value, as upstream. RouterOS 7.24.6 cannot clear a set `ttl`.",
 		// Fields RouterOS leaves out are not sent back as zero values.
+		// An update carries only the changed fields (forkUpdateOnlyChanged).
 		CreateContext: ForkCreateDropUnset(resSchema, bgpConnectionUnsetFields),
 		ReadContext:   DefaultRead(resSchema),
 		UpdateContext: ForkUpdateDropUnset(resSchema, bgpConnectionUnsetFields),

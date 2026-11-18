@@ -26,7 +26,8 @@ func ResourceContainerConfig() *schema.Resource {
 			Sensitive:        true,
 			DiffSuppressFunc: MaskedSecretNotInConfig,
 			Optional:         true,
-			Description:      "Specifies the password for authentication (starting from ROS 7.8). If absent or empty, the password is not managed: the router keeps its value and it cannot be cleared through the configuration.",
+			Description: "Specifies the password for authentication (starting from ROS 7.8). " +
+				"RouterOS returns the password masked (`*****`) when the provider's RouterOS user lacks the `sensitive` policy: then an absent or empty password is not managed, the router keeps its value, the mask is never sent back, and the password cannot be cleared through the configuration. With the `sensitive` policy RouterOS returns the real password: an absent or empty password is then a planned change of `password` (to null or `\"\"`, shown as `(sensitive value)`), and apply clears the password on the router.",
 		},
 		"memory_high": {
 			Type:     schema.TypeString,
