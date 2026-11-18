@@ -15,5 +15,6 @@ func init() {
     driftAttributeSlice.AddBefore("7.21", "/container", "mountlists", "mounts")
     driftAttributeSlice.AddBefore("7.21", "/container/mounts", "list", "name")
     driftAttributeSlice.Add("7.21", "/ip/ssh", "always-allow-password-login", "password-authentication")
+    driftAttributeSlice.Add("7.24", "/ip/service", "address", "available-from")
     driftAttributeSlice.SortDesc()
 }

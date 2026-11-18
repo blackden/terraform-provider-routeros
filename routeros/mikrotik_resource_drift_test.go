@@ -71,3 +71,24 @@ func TestContainerState(t *testing.T) {
 		}
 	}
 }
+
+// RouterOS 7.24 renamed /ip/service address -> available-from (upstream PR #1009):
+// the schema keeps `address`, 7.23.x routers get no drift.
+func TestDriftAttributeSlice_IpService(t *testing.T) {
+	tests := []struct {
+		ros     string
+		reverse bool
+		want    map[string]string
+	}{
+		{"7.23.8", false, map[string]string{}},
+		{"7.24", false, map[string]string{"address": "available-from"}},
+		{"7.24.6", false, map[string]string{"address": "available-from"}},
+		{"7.24.6", true, map[string]string{"available-from": "address"}},
+		{"7.25.1", false, map[string]string{"address": "available-from"}},
+	}
+	for _, tt := range tests {
+		if got := driftAttributeSlice.GetDriftMap(tt.ros, "/ip/service", tt.reverse); !reflect.DeepEqual(got, tt.want) {
+			t.Errorf("GetDriftMap(%v, /ip/service, %v) = %v, want %v", tt.ros, tt.reverse, got, tt.want)
+		}
+	}
+}

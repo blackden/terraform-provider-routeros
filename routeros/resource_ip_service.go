@@ -73,9 +73,8 @@ func ResourceIpService() *schema.Resource {
 		MetaResourcePath: PropResourcePath("/ip/service"),
 		MetaId:           PropId(Id),
 
-		// TODO: the RouterOS 7.25 CLI reference marks `address` deprecated in favour of
-		// `available-from` (a value set with address is written to available-from). 7.23 still prints
-		// `address`; add a drift entry once the version of the rename is known.
+		// RouterOS 7.24 renamed `address` to `available-from` (7.24.6 prints only available-from).
+		// The schema keeps `address`; the drift entry "7.24 /ip/service" (upstream PR #1009) maps it.
 		"address": {
 			Type:        schema.TypeString,
 			Optional:    true,
